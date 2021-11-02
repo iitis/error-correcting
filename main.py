@@ -13,13 +13,14 @@ from data_gen import generate_dataset
 
 
 if __name__ == '__main__':
-    #g = generate_ising_lattice((4, 4, 4), "gauss")
-    #g = to_networkx(generate_ising_lattice((4, 4)))
+    g = generate_ising_lattice((2, 2), "gauss")
+    #g = to_networkx(g)
     #nx.draw(g)
     #plt.show()
-    dataset = generate_dataset(10, 2)
-    for x in dataset:
-        print(x)
+
+    print(g.edge_index)
+    print(g.edge_attr)
+
 
 
 

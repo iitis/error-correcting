@@ -1,9 +1,10 @@
 import torch
 import random as rn
 
-from torch_geometric.utils import from_networkx
+from torch_geometric.utils import from_networkx, to_undirected
 from networkx.generators.lattice import grid_graph
 from torch_geometric.loader import DataLoader
+from torch_geometric.data import Data
 
 
 def generate_ising_lattice(dim, distribution="gauss", params=None, spin_conf="all_up", periodic=False, external=True):
@@ -28,6 +29,10 @@ def generate_ising_lattice(dim, distribution="gauss", params=None, spin_conf="al
 
     num_of_edges = graph.size()
 
+    temp = from_networkx(graph)
+    edge_index = to_undirected(temp.edge_index)  # it gives predictable order to COO matrix
+    print()
+
     # create spin configuration
     if spin_conf == "all_up":
         x = [[1] for v in range(num_of_nodes)]
@@ -41,16 +46,14 @@ def generate_ising_lattice(dim, distribution="gauss", params=None, spin_conf="al
     if distribution == "gauss":
         if params is None:
             params = [0, 1]
-        edge_attr = [[rn.gauss(params[0], params[1])] for e in range(num_of_edges)]
+        edge_attr = generate_edge_attr(edge_index.t().tolist(), distribution, params)
     if distribution == "uniform":
         if params is None:
             params = [-2, 2]
         edge_attr = [[rn.uniform(params[0], params[1])] for e in range(num_of_edges)]
     edge_attr = torch.tensor(edge_attr, dtype=torch.float)
 
-    data = from_networkx(graph)
-    data.x = x
-    data.edge_attr = edge_attr
+    data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
 
     return data
 
@@ -58,4 +61,33 @@ def generate_ising_lattice(dim, distribution="gauss", params=None, spin_conf="al
 def generate_dataset(size, batch_size):
     data_list = [generate_ising_lattice((5, 5)) for i in range(size)]
     dataset = DataLoader(data_list, batch_size=batch_size)
+
     return dataset
+
+
+def generate_edge_attr(list_of_edges, dist, params):
+    buffor = []
+    attr = []
+    duplicate = False
+    for edge in list_of_edges:
+
+        # get random value from distribution
+        if dist == "gauss":
+            value = rn.gauss(params[0], params[1])
+        elif dist == "uniform":
+            value = rn.uniform(params[0], params[1])
+        else:
+            value = rn.gauss(params[0], params[1])  # safety
+
+        for b in buffor:
+            if b[0][0] == edge[1] and b[0][1] == edge[0]:
+                attr.append(b[1])
+                duplicate = True
+
+        if not duplicate:
+            attr.append(value)
+
+        buffor.append([edge, value])
+        duplicate = False
+    return attr
+
