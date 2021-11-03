@@ -8,7 +8,16 @@ from torch_geometric.data import Data
 
 
 def generate_ising_lattice(dim, distribution="gauss", params=None, spin_conf="all_up", periodic=False, external=True):
+    """
 
+    :param dim:
+    :param distribution:
+    :param params:
+    :param spin_conf:
+    :param periodic:
+    :param external:
+    :return:
+    """
     assert distribution in ["gauss", "uniform"], "distribution must be \"gauss\" or \"uniform\""
     assert spin_conf in ["all_up", "all_down",
                          "random"], "spin configuration must be \"all_up\", \"all_down\" or \"random\""
@@ -31,7 +40,6 @@ def generate_ising_lattice(dim, distribution="gauss", params=None, spin_conf="al
 
     temp = from_networkx(graph)
     edge_index = to_undirected(temp.edge_index)  # it gives predictable order to COO matrix
-    print()
 
     # create spin configuration
     if spin_conf == "all_up":
@@ -50,8 +58,9 @@ def generate_ising_lattice(dim, distribution="gauss", params=None, spin_conf="al
     if distribution == "uniform":
         if params is None:
             params = [-2, 2]
-        edge_attr = [[rn.uniform(params[0], params[1])] for e in range(num_of_edges)]
+        edge_attr = generate_edge_attr(edge_index.t().tolist(), distribution, params)
     edge_attr = torch.tensor(edge_attr, dtype=torch.float)
+    edge_attr.resize_((edge_index.size()[1], 1))  # transpose row vector to column vector
 
     data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
 
@@ -91,3 +100,9 @@ def generate_edge_attr(list_of_edges, dist, params):
         duplicate = False
     return attr
 
+
+def transform(graph, dim):
+    g = grid_graph(dim)
+    x = list(g.nodes())
+    graph.x = torch.tensor(x, dtype=torch.float)
+    return graph

@@ -5,12 +5,10 @@ for now used mainly for testing purposes
 
 import networkx as nx
 import matplotlib.pyplot as plt
-
 from torch_geometric.utils import to_networkx
-from data_gen import generate_ising_lattice
+from data_gen import generate_ising_lattice, transform
 from utils import plot_graph
-from data_gen import generate_dataset
-
+from learn import EdgeCentric, NodeCentric, SGNN
 
 if __name__ == '__main__':
     g = generate_ising_lattice((2, 2), "gauss")
@@ -18,8 +16,11 @@ if __name__ == '__main__':
     #nx.draw(g)
     #plt.show()
 
-    print(g.edge_index)
-    print(g.edge_attr)
+    model = EdgeCentric(2, 4, 1, 2)
+    model2 = NodeCentric(2, 4, 1, 2)
+    g = transform(g, (2, 2))
+    model3 = SGNN()
+    print(model3(g))
 
 
 
