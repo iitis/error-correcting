@@ -40,7 +40,7 @@ def add_edges(x, edge_index, edge_attr):  # also hacked, but i don't have better
 
     :param x:
     :param edge_index:
-    :param edge_attr:
+    :param edge_attr: min size [E,2]
     :return:  matrix of size [N, num_of_edge_features]
     """
     added = []
@@ -49,14 +49,12 @@ def add_edges(x, edge_index, edge_attr):  # also hacked, but i don't have better
         temp = edge_attr
         for edge in edge_index.t().tolist():
             m = 1 if edge[0] == node else 0
-            mask.append(m)
+            mask.append([m])
         mask = torch.tensor(mask)
-        mask.resize_((edge_index.size()[1], 1))  # transposition of 1d tensor
         temp = mask * temp
-        added.append(torch.sum(temp))
+        added.append(torch.sum(temp, dim=0))
         mask = []
     added = torch.stack(added)
-
-    if len(added.size()) == 1:  # 1d tensor
-        added.resize_(x.size()[0], 1)
+    print(added)
+    print(added.size())
     return added

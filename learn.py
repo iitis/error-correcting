@@ -56,7 +56,6 @@ class NodeCentric(nn.Module):
         # edge_sum has size [N, num_of_edge_features]
         # return has size [N, out_channels_x + out_channels_e]
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
-
         x = self.fcx(x)
         edge_sum = add_edges(x, edge_index, edge_attr)
         edge_sum = self.fce(edge_sum)
