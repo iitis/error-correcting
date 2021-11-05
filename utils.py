@@ -55,6 +55,4 @@ def add_edges(x, edge_index, edge_attr):  # also hacked, but i don't have better
         added.append(torch.sum(temp, dim=0))
         mask = []
     added = torch.stack(added)
-    print(added)
-    print(added.size())
     return added

@@ -1,20 +1,26 @@
+import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import MessagePassing
 from utils import add_neighbours, add_edges
+from collections import namedtuple, deque
 
 
 # implement network as in article
 class SGNN(nn.Module):
     def __init__(self):
         super(SGNN, self).__init__()
-        self.edge1 = EdgeCentric(2, 4, 1, 2)
-        self.node1 = NodeCentric(2, 4, 6, 10)
+        self.edge1 = EdgeCentric(2, 4, 1, 2)  # edge [E, 6]
+        self.node1 = NodeCentric(2, 4, 6, 10)  # node [N, 14]
+        self.edge2 = EdgeCentric(14, 18, 6, 10)  # edge [E, 28]
+        self.node2 = NodeCentric(14, 18, 28, 30) # node [N, 48]
 
     def forward(self, data):
         data.edge_attr = F.relu(self.edge1(data))
         data.x = F.relu(self.node1(data))
+        data.edge_attr = F.relu(self.edge2(data))
+        data.x = F.relu(self.node2(data))
 
         return data
 
@@ -63,9 +69,24 @@ class NodeCentric(nn.Module):
         return x
 
 
+Transition = namedtuple('Transition',
+                        ('state', 'action', 'next_state', 'reward'))
 
 
+class ReplayMemory(object):
 
+    def __init__(self, capacity):
+        self.memory = deque([],maxlen=capacity)
+
+    def push(self, *args):
+        """Save a transition"""
+        self.memory.append(Transition(*args))
+
+    def sample(self, batch_size):
+        return random.sample(self.memory, batch_size)
+
+    def __len__(self):
+        return len(self.memory)
 
 
 
