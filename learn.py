@@ -5,16 +5,19 @@ import torch.nn.functional as F
 from torch_geometric.nn import MessagePassing
 from utils import add_neighbours, add_edges
 from collections import namedtuple, deque
+from data_gen import transform
 
 
 # implement network as in article
 class SGNN(nn.Module):
+
     def __init__(self):
         super(SGNN, self).__init__()
-        self.edge1 = EdgeCentric(2, 4, 1, 2)  # edge [E, 6]
-        self.node1 = NodeCentric(2, 4, 6, 10)  # node [N, 14]
-        self.edge2 = EdgeCentric(14, 18, 6, 10)  # edge [E, 28]
-        self.node2 = NodeCentric(14, 18, 28, 30) # node [N, 48]
+
+        self.edge1 = EdgeCentric(2, 2, 1, 2)  # edge [E, 4]
+        self.node1 = NodeCentric(2, 2, 4, 5)  # node [N, 7]
+        self.edge2 = EdgeCentric(7, 9, 4, 5)  # edge [E, 14]
+        self.node2 = NodeCentric(7, 9, 14, 15)  # node [N, 24]
 
     def forward(self, data):
         data.edge_attr = F.relu(self.edge1(data))
@@ -25,7 +28,31 @@ class SGNN(nn.Module):
         return data
 
 
+class DIRAC(nn.Module):
+
+    def __init__(self):
+        super(DIRAC, self).__init__()
+
+        self.encoder = SGNN()
+        self.fc1 = nn.Linear(24, 96)
+        self.fc2 = nn.Linear(96, 10)
+        self.fc3 = nn.Linear(10, 1)
+
+    def forward(self, data, dim=2):
+        # output should have size [N, 1] (Q-values)
+        ising_graph = data
+        data = transform(data, dim)
+        data_encoded = self.encoder(data)
+        Q = data_encoded.x  # node attributes
+        Q = F.relu(self.fc1(Q))
+        Q = F.relu(self.fc2(Q))
+        Q = F.relu(self.fc3(Q))
+
+        return Q
+
+
 class EdgeCentric(nn.Module):
+
     def __init__(self, in_channels_x, out_channels_x, in_channels_e, out_channels_e):
         super(EdgeCentric, self).__init__()
 
@@ -49,6 +76,7 @@ class EdgeCentric(nn.Module):
 
 
 class NodeCentric(nn.Module):
+
     def __init__(self, in_channels_x, out_channels_x, in_channels_e, out_channels_e):
         super(NodeCentric, self).__init__()
 
@@ -76,7 +104,7 @@ Transition = namedtuple('Transition',
 class ReplayMemory(object):
 
     def __init__(self, capacity):
-        self.memory = deque([],maxlen=capacity)
+        self.memory = deque([], maxlen=capacity)
 
     def push(self, *args):
         """Save a transition"""
@@ -87,6 +115,8 @@ class ReplayMemory(object):
 
     def __len__(self):
         return len(self.memory)
+
+
 
 
 

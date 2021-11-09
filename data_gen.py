@@ -102,7 +102,10 @@ def generate_edge_attr(list_of_edges, dist, params):
 
 
 def transform(graph, dim):
-    g = grid_graph(dim)
+    x = graph.num_nodes
+    y = x**(1.0/dim)
+    size = [int(y) for i in range(dim)]
+    g = grid_graph(size)
     x = list(g.nodes())
     graph.x = torch.tensor(x, dtype=torch.float)
     return graph
