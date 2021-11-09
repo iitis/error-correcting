@@ -4,19 +4,38 @@ import matplotlib.pyplot as plt
 from torch_geometric.utils import to_networkx
 
 
-def plot_graph(graph, attributes=False):
+def plot_graph(graph, attributes=True):
     """
-    Draws graph
+    Draws graph. For spin up, node is white, for spin down node is black. Red edge denotes negative
+    coupling strength, blue positive.
     :param graph: torch_geometric Data object
-    :param attributes: bool, if true then it includes edges and nodes features. Not suported now
+    :param attributes: bool, if true then it includes edges and nodes features.
     """
-    if attributes:  # broken
-        node_attrs = [str(x) for x in graph.x.tolist()]
-        g = to_networkx(graph, node_attrs=node_attrs, to_undirected=True)
+    if attributes:
+        node_attrs = graph.x.tolist()
+        node_color = []
+        for attr in node_attrs:
+            if attr == [1.0]:
+                node_color.append("white")
+            else:
+                node_color.append("black")
+        edge_attr = graph.edge_attr.tolist()
+        edge_attr = [item for sublist in edge_attr for item in sublist]
+        print(edge_attr)
+        edge_attr = set(edge_attr)  # prob that two distinct edges will have the same value is 0
+        edge_color = []
+        for attr in edge_attr:
+            if attr >= 0:
+                edge_color.append("blue")
+            else:
+                edge_color.append("red")
+        g = to_networkx(graph, to_undirected=True)
+        nx.draw(g, node_color=node_color, edgecolors="black", edge_color=edge_color)
+
     else:
         g = to_networkx(graph, to_undirected=True)
+        nx.draw(g)
 
-    nx.draw(g)
     plt.show()
 
 
