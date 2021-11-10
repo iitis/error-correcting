@@ -1,3 +1,5 @@
+"""Various useful helper functions"""
+
 import torch
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -21,7 +23,6 @@ def plot_graph(graph, attributes=True):
                 node_color.append("black")
         edge_attr = graph.edge_attr.tolist()
         edge_attr = [item for sublist in edge_attr for item in sublist]
-        print(edge_attr)
         edge_attr = set(edge_attr)  # prob that two distinct edges will have the same value is 0
         edge_color = []
         for attr in edge_attr:

@@ -4,18 +4,27 @@ import random as rn
 from torch_geometric.utils import from_networkx, to_undirected
 from networkx.generators.lattice import grid_graph
 from torch_geometric.loader import DataLoader
-from torch_geometric.data import Data
+from torch_geometric.data import Data, InMemoryDataset
+
+
+class IsingDataset2d(InMemoryDataset):
+
+    def __init__(self, transform=None, pre_transform=None):
+        super().__init__(None, transform, pre_transform)
+
+
+
 
 
 def generate_ising_lattice(dim, distribution="gauss", params=None, spin_conf="all_up", periodic=False, external=True):
     """
-
-    :param dim:
-    :param distribution:
-    :param params:
-    :param spin_conf:
-    :param periodic:
-    :param external:
+    Generates random Ising Graph in lattice format.
+    :param dim: tuple of sizes in each dimension
+    :param distribution: Decides which distribution is used to generate coupling strength
+    :param params: parameters of chosen distribution
+    :param spin_conf: decides spin configuration
+    :param periodic: periodic or fixed boundary conditions
+    :param external: external magnetic field
     :return:
     """
     assert distribution in ["gauss", "uniform"], "distribution must be \"gauss\" or \"uniform\""
@@ -34,7 +43,7 @@ def generate_ising_lattice(dim, distribution="gauss", params=None, spin_conf="al
         graph.add_edges_from(edge_list)
 
     if periodic:
-        print("periodic boundary condition not supported yet")
+        print("WARNING: periodic boundary condition not supported yet")
 
     num_of_edges = graph.size()
 
@@ -101,11 +110,11 @@ def generate_edge_attr(list_of_edges, dist, params):
     return attr
 
 
-def transform(graph, dim):
-    x = graph.num_nodes
+def transform(data, dim):
+    x = data.num_nodes
     y = x**(1.0/dim)
     size = [int(y) for i in range(dim)]
     g = grid_graph(size)
     x = list(g.nodes())
-    graph.x = torch.tensor(x, dtype=torch.float)
-    return graph
+    data.x = torch.tensor(x, dtype=torch.float)
+    return data

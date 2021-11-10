@@ -2,7 +2,7 @@ import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import MessagePassing
+#from torch_geometric.nn import MessagePassing
 from utils import add_neighbours, add_edges
 from collections import namedtuple, deque
 from data_gen import transform
@@ -115,9 +115,5 @@ class ReplayMemory(object):
 
     def __len__(self):
         return len(self.memory)
-
-
-
-
 
 
