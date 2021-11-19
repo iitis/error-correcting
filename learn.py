@@ -18,12 +18,25 @@ class SGNN(nn.Module):
         self.node1 = NodeCentric(2, 2, 4, 5)  # node [N, 7]
         self.edge2 = EdgeCentric(7, 9, 4, 5)  # edge [E, 14]
         self.node2 = NodeCentric(7, 9, 14, 15)  # node [N, 24]
+        self.edge3 = EdgeCentric(24, 30, 14, 15)  # edge [E, 45]
+        self.node3 = NodeCentric(24, 30, 45, 15)  # node [N, 45]
+        self.edge4 = EdgeCentric(45, 20, 45, 15)  # edge [E, 35]
+        self.node4 = NodeCentric(45, 20, 35, 10)  # node [N, 30]
+        self.edge5 = EdgeCentric(30, 3, 35, 2)  # edge [E, 5]
+        self.node5 = NodeCentric(30, 3, 5, 2)  # node [N, 5]
 
     def forward(self, data):
+
         data.edge_attr = F.relu(self.edge1(data))
         data.x = F.relu(self.node1(data))
         data.edge_attr = F.relu(self.edge2(data))
         data.x = F.relu(self.node2(data))
+        data.edge_attr = F.relu(self.edge3(data))
+        data.x = F.relu(self.node3(data))
+        data.edge_attr = F.relu(self.edge4(data))
+        data.x = F.relu(self.node4(data))
+        data.edge_attr = F.relu(self.edge5(data))
+        data.x = F.relu(self.node5(data))
 
         return data
 
@@ -34,9 +47,9 @@ class DIRAC(nn.Module):
         super(DIRAC, self).__init__()
 
         self.encoder = SGNN()
-        self.fc1 = nn.Linear(24, 96)
-        self.fc2 = nn.Linear(96, 10)
-        self.fc3 = nn.Linear(10, 1)
+        self.fc1 = nn.Linear(5, 15)
+        self.fc2 = nn.Linear(15, 7)
+        self.fc3 = nn.Linear(7, 1)
 
     def forward(self, data, dim=2):
         # output should have size [N, 1] (Q-values)
@@ -66,7 +79,6 @@ class EdgeCentric(nn.Module):
         # node_sum has size [E, num_of_node_features]
         # return has size [E, out_channels_x + out_channels_e]
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
-
         edge_attr = self.fce(edge_attr)
         node_sum = add_neighbours(x, edge_index)
         node_sum = self.fcx(node_sum)

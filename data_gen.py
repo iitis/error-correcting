@@ -111,6 +111,12 @@ def generate_edge_attr(list_of_edges, dist, params):
 
 
 def transform(data, dim):
+    """
+    Transform ising graph into form with grid coordinates instead of spins (see article)
+    :param data: Graph
+    :param dim: number of dimensions
+    :return: graph with node attributes like in article (node grid coordinates)
+    """
     x = data.num_nodes
     y = x**(1.0/dim)
     size = [int(y) for i in range(dim)]

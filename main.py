@@ -14,16 +14,16 @@ from learn import EdgeCentric, NodeCentric, SGNN, DIRAC
 if __name__ == '__main__':
     g = generate_ising_lattice((3, 3), "gauss", spin_conf="random")
     #plot_graph(g, True)
-    #nx.draw(g)
-    #plt.show()
 
     model = EdgeCentric(2, 4, 1, 2)
     model2 = NodeCentric(2, 4, 1, 2)
-    #g = transform(g, (2, 2))
     model3 = SGNN()
+    g = transform(g, 2)
     model4 = DIRAC()
-    env = IsingGraph2d(3)
-    #print(model4(g))
+    output = model4(g)
+    env = IsingGraph2d([g])
+
+    print(env)
 
 
 
