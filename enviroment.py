@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from math import inf
 from gym import spaces
+from utils import plot_graph
 
 
 class IsingGraph2d(gym.Env):  # this package is badly documented, expect lot of hacking
@@ -16,7 +17,7 @@ class IsingGraph2d(gym.Env):  # this package is badly documented, expect lot of 
         super(IsingGraph2d, self).__init__()
 
         self.dataset = dataset  # for now dataset is list of pytorch_geometric.data.Data objects (graphs)
-        self.data = dataset[0]  # to be overwritten when .reset method is called
+        self.data = iter(dataset).next()[0]  # to be overwritten when .reset method is called,
 
         self.action_space = spaces.Discrete(self.data.num_nodes)
         self.observation_space = spaces.Box(low=-inf, high=inf, shape=(self.data.num_nodes, self.data.num_edges,
@@ -30,4 +31,5 @@ class IsingGraph2d(gym.Env):  # this package is badly documented, expect lot of 
         self.data = rn.choice(self.dataset)
 
     def render(self, mode='human'):
-        pass
+        print(self.data)
+        plot_graph(self.data)

@@ -6,14 +6,10 @@ from networkx.generators.lattice import grid_graph
 from torch_geometric.loader import DataLoader
 from torch_geometric.data import Data, InMemoryDataset
 
-
 class IsingDataset2d(InMemoryDataset):
 
     def __init__(self, transform=None, pre_transform=None):
         super().__init__(None, transform, pre_transform)
-
-
-
 
 
 def generate_ising_lattice(dim, distribution="gauss", params=None, spin_conf="all_up", periodic=False, external=True):
@@ -77,8 +73,8 @@ def generate_ising_lattice(dim, distribution="gauss", params=None, spin_conf="al
 
 
 def generate_dataset(size, batch_size):
-    data_list = [generate_ising_lattice((5, 5)) for i in range(size)]
-    dataset = DataLoader(data_list, batch_size=batch_size)
+    data_list = [generate_ising_lattice((3, 3)) for i in range(size)]
+    dataset = DataLoader(data_list, batch_size=batch_size, shuffle=True)
 
     return dataset
 
