@@ -113,10 +113,11 @@ def transform(data, dim):
     :param dim: number of dimensions
     :return: graph with node attributes like in article (node grid coordinates)
     """
-    x = data.num_nodes
+    graph = data
+    x = graph.num_nodes
     y = x**(1.0/dim)
     size = [int(y) for i in range(dim)]
     g = grid_graph(size)
     x = list(g.nodes())
-    data.x = torch.tensor(x, dtype=torch.float)
-    return data
+    graph.x = torch.tensor(x, dtype=torch.float)
+    return graph
