@@ -23,4 +23,4 @@ memory = ReplayMemory(10)
 n_actions = env.action_space.n
 steps_done = 0
 
-
+env.render()
