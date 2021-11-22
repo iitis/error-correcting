@@ -13,7 +13,7 @@ from learn import EdgeCentric, NodeCentric, SGNN, DIRAC
 
 if __name__ == '__main__':
     g = generate_ising_lattice((3, 3), "gauss", spin_conf="random")
-    #plot_graph(g, True)
+    plot_graph(g, True)
 
 
 
