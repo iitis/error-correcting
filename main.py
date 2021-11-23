@@ -7,7 +7,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from torch_geometric.utils import to_networkx
 from data_gen import generate_ising_lattice, transform
-from enviroment import IsingGraph2d
+from enviroment import IsingGraph2dRandom
 from utils import plot_graph
 from learn import EdgeCentric, NodeCentric, SGNN, DIRAC
 

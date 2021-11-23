@@ -76,3 +76,27 @@ def add_edges(x, edge_index, edge_attr):  # also hacked, but i don't have better
         mask = []
     added = torch.stack(added)
     return added
+
+
+def compute_energy(data):
+    spins = data.x
+    interactions = data.edge_attr
+    edge_list = data.edge_index.t().tolist()
+    unique_edges = []
+
+    # determine unique edges (data object is directed graph made undirected)
+    # index is needed to determine value
+    for index, edge in enumerate(edge_list):
+        duplicate = False
+        for unique in unique_edges:
+            if edge[0] == unique[0][1] and edge[1] == unique[0][0]:
+                duplicate = True
+        if not duplicate:
+            unique_edges.append([edge, index])
+
+    # Compute energy. External magnetic field is included in self loops, so we can just sum over all unique edges
+    energies = [spins[unique[0][0]] * interactions[unique[1]] * spins[unique[0][1]] for unique in unique_edges]
+
+    energy = sum(energies).item()
+
+    return energy

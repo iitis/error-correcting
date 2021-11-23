@@ -113,7 +113,7 @@ def transform(data, dim):
     :param dim: number of dimensions
     :return: graph with node attributes like in article (node grid coordinates)
     """
-    graph = data
+    graph = data.clone()
     x = graph.num_nodes
     y = x**(1.0/dim)
     size = [int(y) for i in range(dim)]
