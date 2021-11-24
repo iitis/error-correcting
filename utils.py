@@ -5,6 +5,8 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from torch_geometric.utils import to_networkx
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 def plot_graph(graph, attributes=True):
     """
@@ -57,28 +59,34 @@ def add_neighbours(x, edge_index): # hacked, but it works
 
 def add_edges(x, edge_index, edge_attr):  # also hacked, but i don't have better idea
     """
-
-    :param x:
-    :param edge_index:
+    For each vertex it adds edge features of adjacent edges
+    :param x: matrix of edge features
+    :param edge_index: edge_index of graph
     :param edge_attr: min size [E,2]
     :return:  matrix of size [N, num_of_edge_features]
     """
     added = []
-    mask = []
     for node in range(x.size()[0]):
-        temp = edge_attr
-        for edge in edge_index.t().tolist():
-            m = 1 if edge[0] == node else 0
-            mask.append([m])
-        mask = torch.tensor(mask)
-        temp = mask * temp
-        added.append(torch.sum(temp, dim=0))
-        mask = []
+        adjacent_edges = []
+        sum_of_edges = torch.zeros(edge_attr.size()[1]).to(device)
+        for index, edge in enumerate(edge_index.t().tolist()):
+            if edge[0] == node:
+                adjacent_edges.append(index)
+        for index in adjacent_edges:
+            sum_of_edges += edge_attr[index]
+
+        added.append(sum_of_edges)
+
     added = torch.stack(added)
     return added
 
 
 def compute_energy(data):
+    """
+    computes energy of ising spin-glass instance
+    :param data: ising spin glass instance
+    :return: Energy of the instance
+    """
     spins = data.x
     interactions = data.edge_attr
     edge_list = data.edge_index.t().tolist()
@@ -100,3 +108,8 @@ def compute_energy(data):
     energy = sum(energies).item()
 
     return energy
+
+
+def gauge_transformation(data):
+    graph = data.clone()
+

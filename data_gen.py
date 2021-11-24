@@ -108,6 +108,7 @@ def generate_edge_attr(list_of_edges, dist, params):
 
 def transform(data, dim):
     """
+    It expects square grid
     Transform ising graph into form with grid coordinates instead of spins (see article)
     :param data: Graph
     :param dim: number of dimensions

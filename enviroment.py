@@ -1,8 +1,6 @@
 import gym
-import random as rn
-import numpy as np
-import pandas as pd
 from math import inf
+from matplotlib.pyplot import close
 
 import torch
 from gym import spaces
@@ -22,31 +20,38 @@ class IsingGraph2dRandom(gym.Env):  # this package is badly documented, expect l
         self.dim = dim
         self.data = generate_ising_lattice(dim, spin_conf="all_up")  # to be overwritten when .reset method is called,
 
-        self.state = self.data
-
         self.action_space = spaces.Discrete(self.data.num_nodes)
         self.observation_space = spaces.Box(low=-inf, high=inf, shape=(self.data.num_nodes, self.data.num_edges,
                                                                        self.data.num_edges, self.data.num_edges))  # graph instance
+        self.actions_taken = [1 for x in range(self.action_space.n)]
 
-    def step(self, action):
+    def step(self, action: int):
         assert self.action_space.contains(action), "Invalid Action"
 
         done = False
+        info = action
 
         old_data = self.data
         self.data = self.flip_spin(action)
         reward = compute_energy(old_data) - compute_energy(self.data)
-        state = self.data
-        info = []
 
-        return state, reward, done, info
+        next_state = self.data
+
+        self.actions_taken[action] = -inf
+
+        if self.actions_taken == [-inf for x in range(self.action_space.n)]:
+            done = True
+
+        return next_state, reward, done, info
 
     def reset(self):
         # take graph from dataset
         self.data = generate_ising_lattice(self.dim, spin_conf="all_up")
+        # reset action taken
+        self.actions_taken = [1 for x in range(self.action_space.n)]
 
     def render(self, mode='human'):
-
+        close("all")
         plot_graph(self.data)
 
     def flip_spin(self, spin):

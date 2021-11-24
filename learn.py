@@ -7,6 +7,8 @@ from utils import add_neighbours, add_edges
 from collections import namedtuple, deque
 from data_gen import transform
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 # implement network as in article
 class SGNN(nn.Module):
@@ -26,6 +28,11 @@ class SGNN(nn.Module):
         self.node5 = NodeCentric(30, 3, 5, 2)  # node [N, 5]
 
     def forward(self, data):
+        x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
+        x.to(device)
+        edge_index.to(device)
+        edge_attr.to(device)
+        data.cuda()
 
         data.edge_attr = F.relu(self.edge1(data))
         data.x = F.relu(self.node1(data))
@@ -38,30 +45,39 @@ class SGNN(nn.Module):
         data.edge_attr = F.relu(self.edge5(data))
         data.x = F.relu(self.node5(data))
 
-        return data
+        action_embedding = data.x  # node attributes [N, 5]
+        state_embedding = torch.sum(action_embedding, dim=0)  # [1, 5]
+        state_embedding = state_embedding[None, :]
+        state_embedding = state_embedding.repeat(data.x.size()[0], 1)  # change od dimenstions to later concanate
+
+        output = torch.cat((action_embedding, state_embedding), dim=1)  # [N, 10]
+
+        return output
 
 
 class DIRAC(nn.Module):
 
-    def __init__(self):
+    def __init__(self, dim=(3, 3)):
         super(DIRAC, self).__init__()
 
-        self.encoder = SGNN()
-        self.fc1 = nn.Linear(5, 15)
-        self.fc2 = nn.Linear(15, 7)
-        self.fc3 = nn.Linear(7, 1)
+        self.dim = dim
+        self.encoder = SGNN().to(device)
 
-    def forward(self, data, dim=2):
-        # output should have size [N, 1] (Q-values)
+        self.fc1 = nn.Linear(10, 100)
+        self.fc2 = nn.Linear(100, 25)
+        self.fc3 = nn.Linear(25, 1)
+
+    def forward(self, data):
+        # output should have size [1, N] (Q-values)
         ising_graph = data
-        data = transform(data, dim)
-        data_encoded = self.encoder(data)
-        Q = data_encoded.x  # node attributes
+        data = transform(data, len(self.dim))
+        state_action_embedding = self.encoder(data)
+        Q = state_action_embedding  # change matrix [N+1, 5] into vector
         Q = F.relu(self.fc1(Q))
         Q = F.relu(self.fc2(Q))
         Q = F.relu(self.fc3(Q))
 
-        return Q
+        return Q.reshape(-1)
 
 
 class EdgeCentric(nn.Module):
@@ -78,7 +94,15 @@ class EdgeCentric(nn.Module):
         # edge_attr has size [E, in_channels_e]
         # node_sum has size [E, num_of_node_features]
         # return has size [E, out_channels_x + out_channels_e]
+        if device == "cuda":
+            data.cuda()
+        elif device == "cpu":
+            data.cpu()
+
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
+        x.to(device)
+        edge_index.to(device)
+        edge_attr.to(device)
         edge_attr = self.fce(edge_attr)
         node_sum = add_neighbours(x, edge_index)
         node_sum = self.fcx(node_sum)
@@ -102,6 +126,9 @@ class NodeCentric(nn.Module):
         # edge_sum has size [N, num_of_edge_features]
         # return has size [N, out_channels_x + out_channels_e]
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
+        x.to(device)
+        edge_index.to(device)
+        edge_attr.to(device)
         x = self.fcx(x)
         edge_sum = add_edges(x, edge_index, edge_attr)
         edge_sum = self.fce(edge_sum)
