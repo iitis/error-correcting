@@ -24,6 +24,7 @@ class IsingGraph2dRandom(gym.Env):  # this package is badly documented, expect l
         self.observation_space = spaces.Box(low=-inf, high=inf, shape=(self.data.num_nodes, self.data.num_edges,
                                                                        self.data.num_edges, self.data.num_edges))  # graph instance
         self.actions_taken = [1 for x in range(self.action_space.n)]
+        self.done_list = [-inf for x in range(self.action_space.n)]
 
     def step(self, action: int):
         assert self.action_space.contains(action), "Invalid Action"
@@ -39,7 +40,7 @@ class IsingGraph2dRandom(gym.Env):  # this package is badly documented, expect l
 
         self.actions_taken[action] = -inf
 
-        if self.actions_taken == [-inf for x in range(self.action_space.n)]:
+        if self.actions_taken == self.done_list:
             done = True
 
         return next_state, reward, done, info

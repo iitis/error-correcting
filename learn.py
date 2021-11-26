@@ -3,9 +3,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 #from torch_geometric.nn import MessagePassing
+from torch_geometric.data import Batch, Data
 from utils import add_neighbours, add_edges
 from collections import namedtuple, deque
-from data_gen import transform
+from data_gen import transform, transform_batch_square
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -67,11 +68,14 @@ class DIRAC(nn.Module):
         self.fc2 = nn.Linear(100, 25)
         self.fc3 = nn.Linear(25, 1)
 
-    def forward(self, data):
+    def forward(self, batch):
         # output should have size [1, N] (Q-values)
-        ising_graph = data
-        data = transform(data, len(self.dim))
-        state_action_embedding = self.encoder(data)
+        if isinstance(batch, Batch):
+            batch = transform_batch_square(batch)
+        else:
+            batch = transform(batch, len(self.dim))
+
+        state_action_embedding = self.encoder(batch)
         Q = state_action_embedding  # change matrix [N+1, 5] into vector
         Q = F.relu(self.fc1(Q))
         Q = F.relu(self.fc2(Q))

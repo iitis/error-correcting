@@ -9,10 +9,10 @@ from itertools import count
 from tqdm import tqdm
 from torch_geometric.data import Batch
 
-
+PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/model.pt"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-BATCH_SIZE = 128
+BATCH_SIZE = 64
 GAMMA = 0.999
 EPS_START = 0.9
 EPS_END = 0.05
@@ -43,29 +43,35 @@ def optimize_model():  # hacked, more sensible batches will be implemented later
 
     action_batch = torch.tensor(batch.action, device=device)
     reward_batch = torch.tensor(batch.reward, device=device)
+    state_batch = Batch.from_data_list(batch.state)
+    next_states = Batch.from_data_list(batch.next_state)
 
-    q_values = []
-    for data in batch.state:  # very expensive, but DIRAC for now don't supports batched data
-        q = policy_net(data)
-        q_values.append(q)
-    q_values = torch.stack(q_values)
-    # change [128,9] into [128,1] such that each entry is q_value of chosen action
-    state_action_values = q_values.gather(1, action_batch[:, None])
+    # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
+    # columns of actions taken. These are the actions which would've been taken
+    # for each batch state according to policy_net
+    state_action_values = policy_net(state_batch).gather(0, action_batch)
 
+    # Compute V(s_{t+1}) for all next states.
+    # Expected values of actions for non_final_next_states are computed based
+    # on the "older" target_net
 
+    next_state_values = target_net(next_states).detach()  # detach from computation graph so we dont compute gradient
+    next_state_values = torch.reshape(next_state_values, (BATCH_SIZE, -1))
+    next_state_values = torch.max(next_state_values, 1)[0]
 
-    """
+    # Compute the expected Q values
+    expected_state_action_values = (next_state_values * GAMMA) + reward_batch
+
     # Compute Huber loss
     criterion = nn.SmoothL1Loss()
-    #loss = criterion(state_action_values, expected_state_action_values.unsqueeze(1))
+    loss = criterion(state_action_values, expected_state_action_values)
 
     # Optimize the model
     optimizer.zero_grad()
-    #loss.backward()
+    loss.backward()
     for param in policy_net.parameters():
         param.grad.data.clamp_(-1, 1)  # gradient clipping for numerical stability
     optimizer.step()
-    """
 
 
 def select_action(state):
@@ -113,4 +119,9 @@ for episode in tqdm(range(num_episodes)):
 
     if episode % TARGET_UPDATE == 0:
         target_net.load_state_dict(policy_net.state_dict())
+
+    torch.save({
+        'episode': episode,
+        'model_state_dict': policy_net.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict()}, PATH)
 

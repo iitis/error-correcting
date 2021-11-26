@@ -4,7 +4,7 @@ import random as rn
 from torch_geometric.utils import from_networkx, to_undirected
 from networkx.generators.lattice import grid_graph
 from torch_geometric.loader import DataLoader
-from torch_geometric.data import Data, InMemoryDataset
+from torch_geometric.data import Data, InMemoryDataset, Batch
 
 class IsingDataset2d(InMemoryDataset):
 
@@ -108,6 +108,7 @@ def generate_edge_attr(list_of_edges, dist, params):
 
 def transform(data, dim):
     """
+    deprecated
     It expects square grid
     Transform ising graph into form with grid coordinates instead of spins (see article)
     :param data: Graph
@@ -122,3 +123,22 @@ def transform(data, dim):
     x = list(g.nodes())
     graph.x = torch.tensor(x, dtype=torch.float)
     return graph
+
+
+def transform_batch_square(batch):
+    """
+    Transform batch of two dimensional square grid graphs.
+    :param batch: DataBach object created by from_data_list class method of Batch
+    :return:
+    """
+    list_of_graphs = []
+    for i in range(batch.num_graphs):
+        graph = batch.get_example(i).clone()
+        x = graph.num_nodes
+        y = x ** (1.0 / 2)
+        size = [int(y), int(y)]
+        g = grid_graph(size)
+        x = list(g.nodes())
+        graph.x = torch.tensor(x, dtype=torch.float)
+        list_of_graphs.append(graph)
+    return Batch.from_data_list(list_of_graphs)
