@@ -131,7 +131,8 @@ def gauge_transformation(data):
     for i, x in enumerate(output.edge_attr):    
         if x < 0:
             output.edge_attr[i] = x * -1.0
-        
+    
+    #uncomment for debug
     # for i in range(len(output.x)):
     #     print("x", output.x[i], "ti", output.ti[i])
     # print(output.edge_index[0])
