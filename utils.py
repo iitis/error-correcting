@@ -4,6 +4,7 @@ import torch
 import networkx as nx
 import matplotlib.pyplot as plt
 from torch_geometric.utils import to_networkx
+from torch_geometric.data import Data
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -111,5 +112,33 @@ def compute_energy(data):
 
 
 def gauge_transformation(data):
+    """
+    changing the input data of the graph with all the same spin glass
+    :param data: ising spin glass instance
+    :return: graph with all positive data
+    """
     graph = data.clone()
+    
+    output = Data(x=graph.x, edge_index=graph.edge_index, edge_attr=graph.edge_attr, ti=graph.x.clone(), tj=graph.edge_attr.clone())
+    for i, x in enumerate(output.x):    
+        output.x[i] = 1.0
+    for i, node in enumerate(output.edge_index[0]):
+        
+        if output.ti[node]*output.tj[i] < 0:
+            output.tj[i] = -1.0
+        else:
+            output.tj[i] = 1.0
+    for i, x in enumerate(output.edge_attr):    
+        if x < 0:
+            output.edge_attr[i] = x * -1.0
+        
+    # for i in range(len(output.x)):
+    #     print("x", output.x[i], "ti", output.ti[i])
+    # print(output.edge_index[0])
+    # for i in range(len(output.edge_attr)):
+    #     print("x", output.edge_attr[i], "tj", output.tj[i])
+    
+    return output
+
+
 
