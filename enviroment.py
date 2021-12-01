@@ -80,56 +80,6 @@ class IsingGraph2d(IsingGraph2dRandom):
         # reset action taken
         self.actions_taken = [1 for x in range(self.action_space.n)]
 
-class IsingGraph2d(IsingGraph2dRandom):
-    metadata = {"render.modes": ["human"]}
 
-    def __init__(self, data):
-        super(IsingGraph2dRandom, self).__init__()
 
-        self.original_data = data
-        self.data = data
-        self.action_space = spaces.Discrete(self.data.num_nodes)
-        self.observation_space = spaces.Box(low=-inf, high=inf, shape=(1,))  # graph instance
-        self.actions_taken = [1 for x in range(self.action_space.n)]
-        self.done_list = [-inf for x in range(self.action_space.n)]
 
-    def reset(self):
-        self.data = self.original_data
-        # reset action taken
-        self.actions_taken = [1 for x in range(self.action_space.n)]
-
-class IsingGraph2d(IsingGraph2dRandom):
-    metadata = {"render.modes": ["human"]}
-
-    def __init__(self, data):
-        super(IsingGraph2dRandom, self).__init__()
-
-        self.original_data = data
-        self.data = data
-        self.action_space = spaces.Discrete(self.data.num_nodes)
-        self.observation_space = spaces.Box(low=-inf, high=inf, shape=(1,))  # graph instance
-        self.actions_taken = [1 for x in range(self.action_space.n)]
-        self.done_list = [-inf for x in range(self.action_space.n)]
-
-    def reset(self):
-        self.data = self.original_data
-        # reset action taken
-        self.actions_taken = [1 for x in range(self.action_space.n)]
-
-class IsingGraph2d(IsingGraph2dRandom):
-    metadata = {"render.modes": ["human"]}
-
-    def __init__(self, data):
-        super(IsingGraph2dRandom, self).__init__()
-
-        self.original_data = data
-        self.data = data
-        self.action_space = spaces.Discrete(self.data.num_nodes)
-        self.observation_space = spaces.Box(low=-inf, high=inf, shape=(1,))  # graph instance
-        self.actions_taken = [1 for x in range(self.action_space.n)]
-        self.done_list = [-inf for x in range(self.action_space.n)]
-
-    def reset(self):
-        self.data = self.original_data
-        # reset action taken
-        self.actions_taken = [1 for x in range(self.action_space.n)]

@@ -89,22 +89,3 @@ if __name__ == '__main__':
         except IOError:
             print("I/O error")
     """
-
-            if done:  # it is done when model performs final spin flip
-                break
-        df["{}".format(i)] = energy_list
-    df.to_csv(csv_file, sep=',',)
-    torch.save(data, SAVE)
-
-    """
-        try:
-            with open(csv_file, 'w') as csvfile:
-                writer = csv.DictWriter(csvfile, fieldnames=csv_columns)
-                writer.writeheader()
-                for data in dict_data:
-                    writer.writerow(data)
-        except IOError:
-            print("I/O error")
-    """
-
-
