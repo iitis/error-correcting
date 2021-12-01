@@ -106,7 +106,7 @@ def compute_energy(data):
     # Compute energy. External magnetic field is included in self loops, so we can just sum over all unique edges
     energies = [spins[unique[0][0]] * interactions[unique[1]] * spins[unique[0][1]] for unique in unique_edges]
 
-    energy = -1 * sum(energies).item()
+    energy = sum(energies).item()
 
     return energy
 
@@ -118,28 +118,15 @@ def gauge_transformation(data):
     :return: graph with all positive data
     """
     graph = data.clone()
-    
-    output = Data(x=graph.x, edge_index=graph.edge_index, edge_attr=graph.edge_attr, ti=graph.x.clone(), tj=graph.edge_attr.clone())
-    for i, x in enumerate(output.x):    
-        output.x[i] = 1.0
-    for i, node in enumerate(output.edge_index[0]):
-        
-        if output.ti[node]*output.tj[i] < 0:
-            output.tj[i] = -1.0
-        else:
-            output.tj[i] = 1.0
-    for i, x in enumerate(output.edge_attr):    
-        if x < 0:
-            output.edge_attr[i] = x * -1.0
-    """
-    #uncomment for debug
-    for i in range(len(output.x)):
-        print("x", output.x[i], "ti", output.ti[i])
-        print(output.edge_index[0])
-    for i in range(len(output.edge_attr)):
-        print("x", output.edge_attr[i], "tj", output.tj[i])
-    """
-    return output
+    new_data = Data(x=graph.x, edge_index=graph.edge_index, edge_attr=graph.edge_attr)
+    edge_list = data.edge_index.t().tolist()
+    t = graph.x.clone()
+    for i, x in enumerate(new_data.x):
+        new_data.x[i] = x * t[i]
+    for i, edge in enumerate(edge_list):
+        new_data.edge_attr[i] = graph.edge_attr[i] * t[edge[0]] * t[edge[1]]
+
+    return new_data
 
 
 
