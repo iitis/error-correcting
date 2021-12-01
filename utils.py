@@ -106,7 +106,7 @@ def compute_energy(data):
     # Compute energy. External magnetic field is included in self loops, so we can just sum over all unique edges
     energies = [spins[unique[0][0]] * interactions[unique[1]] * spins[unique[0][1]] for unique in unique_edges]
 
-    energy = -sum(energies).item()
+    energy = -1 * sum(energies).item()
 
     return energy
 
