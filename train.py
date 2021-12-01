@@ -1,22 +1,25 @@
 import torch
 import math
+import csv
 import random as rn
 import torch.optim as optim
 import torch.nn as nn
 from enviroment import IsingGraph2dRandom
+from utils import compute_energy
 from learn import DIRAC, ReplayMemory, Transition
 from itertools import count
 from tqdm import tqdm
 from torch_geometric.data import Batch
 
-PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/model.pt"
+PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/model2.pt"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 BATCH_SIZE = 64
 GAMMA = 0.999
-EPS_START = 0.9
+EPS_START = 1.0
 EPS_END = 0.05
-EPS_DECAY = 200
+EPS_DECAY = 225
+NUM_EPISODES = 1000
 TARGET_UPDATE = 10
 
 policy_net = DIRAC().to(device)
@@ -25,14 +28,23 @@ target_net.load_state_dict(policy_net.state_dict())
 target_net.eval()
 optimizer = optim.Adam(policy_net.parameters())
 
+#checkpoint = torch.load(PATH)
+#policy_net.load_state_dict(checkpoint['model_state_dict'])
+#target_net.load_state_dict(checkpoint['model_state_dict'])
+#optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+
 env = IsingGraph2dRandom((3, 3))
 
-memory = ReplayMemory(1000)
+memory = ReplayMemory(10000)
 available_actions = list(range(env.action_space.n))
 steps_done = 0
 
+csv_columns = ["episode", "step", "energy"]
+dict_data = []
+csv_file = "/home/tsmierzchalski/pycharm_projects/error-correcting/rewards.csv"
 
-def optimize_model():  # hacked, more sensible batches will be implemented later, now proof of concept
+def optimize_model():
     if len(memory) < BATCH_SIZE:
         return
     transitions = memory.sample(BATCH_SIZE)
@@ -79,7 +91,6 @@ def select_action(state):
     global available_actions
     sample = rn.random()
     eps_threshold = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * steps_done / EPS_DECAY)  # epsilon decay
-    steps_done += 1
     if sample > eps_threshold:
         with torch.no_grad():
             mask = torch.tensor(env.actions_taken, device=device)
@@ -90,13 +101,15 @@ def select_action(state):
     else:
         return rn.choice(available_actions)
 
+def validate():
+    pass
 
-num_episodes = 100
-for episode in tqdm(range(num_episodes)):
+for episode in tqdm(range(NUM_EPISODES)):
     available_actions = list(range(env.action_space.n))  # reset
     # Initialize the environment and state
     env.reset()
     state = env.data
+    old_energy = math.inf
     for t in count():
         # Select and perform an action
         action = select_action(state)
@@ -109,6 +122,12 @@ for episode in tqdm(range(num_episodes)):
         # Store the transition in memory
         memory.push(state, action, next_state, reward)
 
+        # add data to csv
+        new_energy = compute_energy(state)
+        if new_energy < old_energy:
+            dict_data.append({"episode": episode, "step": steps_done, "energy": new_energy})
+            old_energy = new_energy
+
         # Move to the next state
         state = next_state
 
@@ -116,6 +135,8 @@ for episode in tqdm(range(num_episodes)):
         optimize_model()  # TO DO: optimize_model()
         if done:  # it is done when model performs final spin flip
             break
+
+    steps_done += 1
 
     if episode % TARGET_UPDATE == 0:
         target_net.load_state_dict(policy_net.state_dict())
@@ -125,3 +146,21 @@ for episode in tqdm(range(num_episodes)):
         'model_state_dict': policy_net.state_dict(),
         'optimizer_state_dict': optimizer.state_dict()}, PATH)
 
+
+    try:
+        with open(csv_file, 'w') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=csv_columns)
+            writer.writeheader()
+            for data in dict_data:
+                writer.writerow(data)
+    except IOError:
+        print("I/O error")
+
+    try:
+        with open(csv_file, 'w') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=csv_columns)
+            writer.writeheader()
+            for data in dict_data:
+                writer.writerow(data)
+    except IOError:
+        print("I/O error")

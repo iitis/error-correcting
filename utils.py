@@ -106,7 +106,7 @@ def compute_energy(data):
     # Compute energy. External magnetic field is included in self loops, so we can just sum over all unique edges
     energies = [spins[unique[0][0]] * interactions[unique[1]] * spins[unique[0][1]] for unique in unique_edges]
 
-    energy = sum(energies).item()
+    energy = -1 * sum(energies).item()
 
     return energy
 
@@ -131,14 +131,14 @@ def gauge_transformation(data):
     for i, x in enumerate(output.edge_attr):    
         if x < 0:
             output.edge_attr[i] = x * -1.0
-    
+    """
     #uncomment for debug
-    # for i in range(len(output.x)):
-    #     print("x", output.x[i], "ti", output.ti[i])
-    # print(output.edge_index[0])
-    # for i in range(len(output.edge_attr)):
-    #     print("x", output.edge_attr[i], "tj", output.tj[i])
-    
+    for i in range(len(output.x)):
+        print("x", output.x[i], "ti", output.ti[i])
+        print(output.edge_index[0])
+    for i in range(len(output.edge_attr)):
+        print("x", output.edge_attr[i], "tj", output.tj[i])
+    """
     return output
 
 
