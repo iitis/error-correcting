@@ -75,6 +75,7 @@ if __name__ == '__main__':
             if done:  # it is done when model performs final spin flip
                 break
         df["{}".format(i)] = energy_list
+
     df.to_csv(csv_file, sep=',',)
     torch.save(data, SAVE)
 
@@ -105,6 +106,5 @@ if __name__ == '__main__':
         except IOError:
             print("I/O error")
     """
-
 
 
