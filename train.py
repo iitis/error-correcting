@@ -4,14 +4,18 @@ import csv
 import random as rn
 import torch.optim as optim
 import torch.nn as nn
-from enviroment import IsingGraph2dRandom
+from enviroment import IsingGraph2dRandom, IsingGraph2d
 from utils import compute_energy
 from learn import DIRAC, ReplayMemory, Transition
 from itertools import count
 from tqdm import tqdm
 from torch_geometric.data import Batch
+from statistics import mean
 
-PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/model2.pt"
+PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/model_big.pt"
+CHECKPOINT_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/model_checkpoint.pt"
+VAL_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/graph_reward_track.pt"
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 BATCH_SIZE = 64
@@ -28,21 +32,22 @@ target_net.load_state_dict(policy_net.state_dict())
 target_net.eval()
 optimizer = optim.Adam(policy_net.parameters())
 
-#checkpoint = torch.load(PATH)
-#policy_net.load_state_dict(checkpoint['model_state_dict'])
-#target_net.load_state_dict(checkpoint['model_state_dict'])
-#optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+# checkpoint = torch.load(PATH)
+# policy_net.load_state_dict(checkpoint['model_state_dict'])
+# target_net.load_state_dict(checkpoint['model_state_dict'])
+# optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
 
 env = IsingGraph2dRandom((3, 3))
 
-memory = ReplayMemory(10000)
-available_actions = list(range(env.action_space.n))
+memory = ReplayMemory(10000)  # maybe use n-step transition?
+
 steps_done = 0
 
 csv_columns = ["episode", "step", "energy"]
 dict_data = []
 csv_file = "/home/tsmierzchalski/pycharm_projects/error-correcting/rewards.csv"
+
 
 def optimize_model():
     if len(memory) < BATCH_SIZE:
@@ -86,53 +91,78 @@ def optimize_model():
     optimizer.step()
 
 
-def select_action(state):
+def select_action(state, env):  # write it better, env shouldn't be necessary
     global steps_done
-    global available_actions
+
     sample = rn.random()
     eps_threshold = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * steps_done / EPS_DECAY)  # epsilon decay
     if sample > eps_threshold:
         with torch.no_grad():
-            mask = torch.tensor(env.actions_taken, device=device)
+            mask = torch.tensor(env.actions_taken, device=device)  # used to mask available actions
             q_values = policy_net(state)
             q_values = torch.add(q_values, 0.001)  # to avoid 0 * -inf
             action = mask * q_values
             return action.argmax().item()
     else:
-        return rn.choice(available_actions)
+        return rn.choice(env.available_actions)
+
+
+def solve(data):
+
+    env_local = IsingGraph2d(data)
+    energy = math.inf
+    state = env_local.data
+    for t in count():
+        # Select and perform an action
+        action = select_action(state, env_local)
+        next_state, _, done, _ = env_local.step(action)
+
+        # compute energy
+        new_energy = compute_energy(state)
+        if new_energy < energy:
+            energy = new_energy
+
+        # Move to the next state
+        state = next_state
+
+        if done:  # it is done when model performs final spin flip
+            break
+
+    return energy
+
 
 def validate():
-    pass
+    global available_actions
+    val_set = torch.load(VAL_PATH)
+    val_list = []
+    for i in range(10):
+        graph = val_set["{}".format(i)]
+        energy = solve(graph)
+        val_list.append(energy)
+
+    return mean(val_list)
+
 
 for episode in tqdm(range(NUM_EPISODES)):
     available_actions = list(range(env.action_space.n))  # reset
     # Initialize the environment and state
     env.reset()
     state = env.data
-    old_energy = math.inf
+    validation_score = math.inf
     for t in count():
         # Select and perform an action
-        action = select_action(state)
+        action = select_action(state, env)
         next_state, reward, done, action_taken = env.step(action)
-        
-        # Remove action taken from available actions
 
-        available_actions.remove(action_taken)
         
         # Store the transition in memory
         memory.push(state, action, next_state, reward)
-
-        # add data to csv
-        new_energy = compute_energy(state)
-        if new_energy < old_energy:
-            dict_data.append({"episode": episode, "step": steps_done, "energy": new_energy})
-            old_energy = new_energy
 
         # Move to the next state
         state = next_state
 
         # Perform one step of the optimization (on the policy network)
-        optimize_model()  # TO DO: optimize_model()
+        optimize_model()
         if done:  # it is done when model performs final spin flip
             break
 
@@ -140,21 +170,19 @@ for episode in tqdm(range(NUM_EPISODES)):
 
     if episode % TARGET_UPDATE == 0:
         target_net.load_state_dict(policy_net.state_dict())
+        validation_score_new = validate()
+
+        if validation_score_new < validation_score:
+            validation_score = validation_score_new
+            torch.save({
+                'episode': episode,
+                'validation_score': validation_score,
+                'model_state_dict': policy_net.state_dict()}, PATH)
 
     torch.save({
         'episode': episode,
         'model_state_dict': policy_net.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict()}, PATH)
-
-
-    try:
-        with open(csv_file, 'w') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=csv_columns)
-            writer.writeheader()
-            for data in dict_data:
-                writer.writerow(data)
-    except IOError:
-        print("I/O error")
+        'optimizer_state_dict': optimizer.state_dict()}, CHECKPOINT_PATH)
 
 
 
