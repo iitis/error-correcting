@@ -4,6 +4,7 @@ import networkx as nx
 
 from torch_geometric.utils import from_networkx, to_undirected
 from networkx.generators.lattice import grid_graph
+from networkx.algorithms.operators.all import disjoint_union_all
 from torch_geometric.loader import DataLoader
 from torch_geometric.data import Data, InMemoryDataset, Batch
 
@@ -144,8 +145,27 @@ def transform_batch_square(batch):
         list_of_graphs.append(graph)
     return Batch.from_data_list(list_of_graphs)
 
-def generate_chimera(dim, distribution="gauss", params=None, spin_conf="all_up", external=True):
-    for i in range(dim[0]):
-        for j in range(dim[0]):
 
-            c = nx.complete_bipartite_graph(4, 4)
+def generate_chimera(dim, distribution="gauss", params=None, spin_conf="all_up", external=True):
+    n = dim[0]
+    m = dim[1]
+    list_of_graphs = [nx.complete_bipartite_graph(4, 4) for x in range(n*m)]
+    g = disjoint_union_all(list_of_graphs)
+    horizontal_edges = []
+    vertical_edges = []
+
+    for i in range(n):  # write better loop
+        for j in range(m-1):
+            for k in range(4):  # because we have complete 4,4 bipartite graph
+                horizontal_edges.append((8*i*m + 8*j + 1 + k, 8*i*m + 8*j + 9 + k))  # I have found this equations by hand
+
+    for i in range(n-1):  # write better loop
+        for j in range(m):
+            for k in range(4):  # because we have complete 4,4 bipartite graph
+                pass
+                #vertical_edges.append((8*i*m + 8*j + k, 8*i*m + 8*j + 8*m + k))
+
+    g.add_edges_from(horizontal_edges)
+    g.add_edges_from(vertical_edges)
+
+    return g
