@@ -3,10 +3,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 #from torch_geometric.nn import MessagePassing
-from torch_geometric.data import Batch, Data
+from torch_geometric.data import Batch
 from utils import add_neighbours, add_edges
 from collections import namedtuple, deque
-from data_gen import transform, transform_batch_square
+from src.data_gen import transform, transform_batch_square
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

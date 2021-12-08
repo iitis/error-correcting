@@ -5,7 +5,7 @@ from matplotlib.pyplot import close
 import torch
 from gym import spaces
 from utils import plot_graph, compute_energy, gauge_transformation
-from data_gen import generate_ising_lattice
+from src.data_gen import generate_ising_lattice
 
 
 class IsingGraph2dRandom(gym.Env):  # this package is badly documented, expect lot of hacking

@@ -1,5 +1,6 @@
 import torch
 import random as rn
+import networkx as nx
 
 from torch_geometric.utils import from_networkx, to_undirected
 from networkx.generators.lattice import grid_graph
@@ -142,3 +143,9 @@ def transform_batch_square(batch):
         graph.x = torch.tensor(x, dtype=torch.float)
         list_of_graphs.append(graph)
     return Batch.from_data_list(list_of_graphs)
+
+def generate_chimera(dim, distribution="gauss", params=None, spin_conf="all_up", external=True):
+    for i in range(dim[0]):
+        for j in range(dim[0]):
+
+            c = nx.complete_bipartite_graph(4, 4)
