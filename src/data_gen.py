@@ -5,6 +5,7 @@ import networkx as nx
 from torch_geometric.utils import from_networkx, to_undirected
 from networkx.generators.lattice import grid_graph
 from networkx.algorithms.operators.all import disjoint_union_all
+from networkx.classes.function import set_edge_attributes
 from torch_geometric.loader import DataLoader
 from torch_geometric.data import Data, InMemoryDataset, Batch
 
@@ -147,25 +148,37 @@ def transform_batch_square(batch):
 
 
 def generate_chimera(dim, distribution="gauss", params=None, spin_conf="all_up", external=True):
+    assert distribution in ["gauss", "uniform"], "distribution must be \"gauss\" or \"uniform\""
+
     n = dim[0]
     m = dim[1]
     list_of_graphs = [nx.complete_bipartite_graph(4, 4) for x in range(n*m)]
     g = disjoint_union_all(list_of_graphs)
-    horizontal_edges = []
-    vertical_edges = []
 
-    for i in range(n):  # write better loop
-        for j in range(m-1):
-            for k in range(4):  # because we have complete 4,4 bipartite graph
-                horizontal_edges.append((8*i*m + 8*j + 1 + k, 8*i*m + 8*j + 9 + k))  # I have found this equations by hand
+    # I have found these formulas by hand, k is in range four because we have 4x4 complete bipartite graph
+    horizontal_edges = [(8*row*m + 8*column + 4 + k, 8*row*m + 8*column + 12 + k) for row in range(n)
+                        for column in range(m-1) for k in range(4)]
 
-    for i in range(n-1):  # write better loop
-        for j in range(m):
-            for k in range(4):  # because we have complete 4,4 bipartite graph
-                pass
-                #vertical_edges.append((8*i*m + 8*j + k, 8*i*m + 8*j + 8*m + k))
+    vertical_edges = [(8*row*m + 8*column + k, 8*row*m + 8*column + 8*m + k) for row in range(n-1)
+                      for column in range(m) for k in range(4)]
 
     g.add_edges_from(horizontal_edges)
     g.add_edges_from(vertical_edges)
+
+    # External field is represented as self-loops
+    external_list = [(v, v) for v in g.nodes()]
+    g.add_edges_from(external_list)
+
+    # create couplings
+    if distribution == "gauss":
+        if params is None:
+            params = [0, 1]
+        edge_attr = [rn.gauss(params[0], params[1]) for edge in g.edges]
+    if distribution == "uniform":
+        if params is None:
+            params = [-2, 2]
+        edge_attr = [rn.uniform(params[0], params[1]) for edge in g.edges]
+
+    set_edge_attributes(g, edge_attr)
 
     return g
