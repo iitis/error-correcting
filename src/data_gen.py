@@ -5,9 +5,10 @@ import networkx as nx
 from torch_geometric.utils import from_networkx, to_undirected
 from networkx.generators.lattice import grid_graph
 from networkx.algorithms.operators.all import disjoint_union_all
-from networkx.classes.function import set_edge_attributes
+from networkx.classes.function import set_edge_attributes, set_node_attributes
 from torch_geometric.loader import DataLoader
 from torch_geometric.data import Data, InMemoryDataset, Batch
+from collections import defaultdict
 
 class IsingDataset2d(InMemoryDataset):
 
@@ -147,8 +148,11 @@ def transform_batch_square(batch):
     return Batch.from_data_list(list_of_graphs)
 
 
-def generate_chimera(dim, distribution="gauss", params=None, spin_conf="all_up", external=True):
+def generate_chimera(dim, distribution="gauss", params=None, spin_conf="random"):
+
     assert distribution in ["gauss", "uniform"], "distribution must be \"gauss\" or \"uniform\""
+    assert spin_conf in ["all_up", "all_down",
+                         "random"], "spin configuration must be \"all_up\", \"all_down\" or \"random\""
 
     n = dim[0]
     m = dim[1]
@@ -173,12 +177,34 @@ def generate_chimera(dim, distribution="gauss", params=None, spin_conf="all_up",
     if distribution == "gauss":
         if params is None:
             params = [0, 1]
-        edge_attr = [rn.gauss(params[0], params[1]) for edge in g.edges]
+        edge_attr = {edge: [rn.gauss(params[0], params[1])] for edge in g.edges}
     if distribution == "uniform":
         if params is None:
             params = [-2, 2]
-        edge_attr = [rn.uniform(params[0], params[1]) for edge in g.edges]
+        edge_attr = {edge: [rn.uniform(params[0], params[1])] for edge in g.edges}
 
-    set_edge_attributes(g, edge_attr)
+    set_edge_attributes(g, edge_attr, "coupling")
+
+    # create coupling
+    if spin_conf == "random":
+        spins = {node: rn.choice([[-1], [1]]) for node in g.nodes}
+    if spin_conf == "all_up":
+        x = {node: [1] for node in g.nodes}
+    elif spin_conf == "all_down":
+        x = {node: [-1] for node in g.nodes}
+
+    set_node_attributes(g, spins, "spin")
 
     return g
+
+
+def nx_to_pytorch(graph):
+    """
+    This function assumes that node attributes are called "spin" and edge attributes are called "coupling"
+    :param graph: networkx Graph
+    :return: pytorch geometric data
+    """
+
+    data = from_networkx(graph, ["spin"], ["coupling"])
+
+    return data
