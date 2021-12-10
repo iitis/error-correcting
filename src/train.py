@@ -6,7 +6,7 @@ import torch.optim as optim
 import torch.nn as nn
 from enviroment import IsingGraph2dRandom, IsingGraph2d
 from utils import compute_energy
-from learn import DIRAC, ReplayMemory, Transition
+from DIRAC import DIRAC, ReplayMemory, Transition
 from itertools import count
 from tqdm import tqdm
 from torch_geometric.data import Batch

@@ -5,7 +5,7 @@ Extremely ugly now. I will make it pretty later
 import torch
 import math
 from tqdm import tqdm
-from learn import DIRAC
+from DIRAC import DIRAC
 from enviroment import IsingGraph2dRandom, IsingGraph2d
 from utils import compute_energy
 import pandas as pd

@@ -140,6 +140,12 @@ class NodeCentric(nn.Module):
         return x
 
 
+
+
+
+
+
+
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
