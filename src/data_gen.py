@@ -187,11 +187,11 @@ def generate_chimera(dim, distribution="gauss", params=None, spin_conf="random")
 
     # create coupling
     if spin_conf == "random":
-        spins = {node: rn.choice([[-1], [1]]) for node in g.nodes}
+        spins = {node: rn.choice([[-1.0], [1.0]]) for node in g.nodes}
     if spin_conf == "all_up":
-        x = {node: [1] for node in g.nodes}
+        x = {node: [1.0] for node in g.nodes}
     elif spin_conf == "all_down":
-        x = {node: [-1] for node in g.nodes}
+        x = {node: [-1.0] for node in g.nodes}
 
     set_node_attributes(g, spins, "spin")
 

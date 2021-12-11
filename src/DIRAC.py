@@ -2,7 +2,7 @@ import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-#from torch_geometric.nn import MessagePassing
+from torch_geometric.nn import MessagePassing
 from torch_geometric.data import Batch
 from utils import add_neighbours, add_edges
 from collections import namedtuple, deque
@@ -115,34 +115,23 @@ class EdgeCentric(nn.Module):
         return edge_attr
 
 
-class NodeCentric(nn.Module):
-
+class NodeCentric(MessagePassing):
     def __init__(self, in_channels_x, out_channels_x, in_channels_e, out_channels_e):
         super(NodeCentric, self).__init__()
 
         self.fcx = nn.Linear(in_channels_x, out_channels_x)
         self.fce = nn.Linear(in_channels_e, out_channels_e)
 
-    def forward(self, data):
-        # x has size [N, in_channels_x]
-        # edge_index has size [2, E],
-        # edge_attr has size [E, in_channels_e]
-        # edge_sum has size [N, num_of_edge_features]
-        # return has size [N, out_channels_x + out_channels_e]
-        x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
-        x.to(device)
-        edge_index.to(device)
-        edge_attr.to(device)
+    def forward(self, x, edge_index, edge_attr):
+
         x = self.fcx(x)
-        edge_sum = add_edges(x, edge_index, edge_attr)
-        edge_sum = self.fce(edge_sum)
-        x = torch.cat((x, edge_sum), dim=1)
-        return x
+        e = self.fce(edge_attr)
+        return self.propagate(edge_index, x=x, e=edge_attr)
 
-
-
-
-
+    def message(self, x_j, e_j):
+        m = torch.cat(x_j, e_j)
+        m = F.relu(m)
+        return m
 
 
 
