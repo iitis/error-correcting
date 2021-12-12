@@ -2,11 +2,10 @@ import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import MessagePassing
 from torch_geometric.data import Batch
-from utils import add_neighbours, add_edges
 from collections import namedtuple, deque
 from src.data_gen import transform, transform_batch_square
+from torch_sparse import SparseTensor
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -92,30 +91,18 @@ class EdgeCentric(nn.Module):
         self.fcx = nn.Linear(in_channels_x, out_channels_x)
         self.fce = nn.Linear(in_channels_e, out_channels_e)
 
-    def forward(self, data):
-        # x has size [N, in_channels_x]
-        # edge_index has size [2, E],
-        # edge_attr has size [E, in_channels_e]
-        # node_sum has size [E, num_of_node_features]
-        # return has size [E, out_channels_x + out_channels_e]
-        if device == "cuda":
-            data.cuda()
-        elif device == "cpu":
-            data.cpu()
+    def forward(self, x, edge_index, edge_attr):
 
-        x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
-        x.to(device)
-        edge_index.to(device)
-        edge_attr.to(device)
+        x_i = x[edge_index[0]]
+        x_j = x[edge_index[1]]
+        x = x_i + x_j
+        x = self.fcx(x)
         edge_attr = self.fce(edge_attr)
-        node_sum = add_neighbours(x, edge_index)
-        node_sum = self.fcx(node_sum)
-        edge_attr = torch.cat((edge_attr, node_sum), dim=1)
 
-        return edge_attr
+        return F.relu(torch.cat((x, edge_attr), dim=1))
 
 
-class NodeCentric(MessagePassing):
+class NodeCentric(nn.Module):
     def __init__(self, in_channels_x, out_channels_x, in_channels_e, out_channels_e):
         super(NodeCentric, self).__init__()
 
@@ -124,15 +111,13 @@ class NodeCentric(MessagePassing):
 
     def forward(self, x, edge_index, edge_attr):
 
+        adj = torch.sparse_coo_tensor(edge_index, edge_attr)
+        adj = adj.to_dense()
+        adj = torch.sum(adj, dim=1)
         x = self.fcx(x)
-        e = self.fce(edge_attr)
-        return self.propagate(edge_index, x=x, e=edge_attr)
+        edge_attr = self.fce(adj)
 
-    def message(self, x_j, e_j):
-        m = torch.cat(x_j, e_j)
-        m = F.relu(m)
-        return m
-
+        return F.relu(torch.cat((x, edge_attr), dim=1))
 
 
 Transition = namedtuple('Transition',

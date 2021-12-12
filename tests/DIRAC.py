@@ -1,30 +1,44 @@
 import unittest
 import torch
 
-from src.DIRAC import NodeCentric
+from src.DIRAC import NodeCentric, EdgeCentric
 from src.data_gen import generate_chimera, nx_to_pytorch
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class MyTestCase(unittest.TestCase):
+class TestDIRAC(unittest.TestCase):
 
-    dim1 = 3
-    dim2 = 3
-    draw = False
-    print = False
+    cuda = False
+    dim1 = 2
+    dim2 = 2
+    node_par1 = 2
+    node_par2 = 2
+    edge_par1 = 2
+    edge_par2 = 2
 
     @classmethod
     def setUpClass(cls):
         cls.g = generate_chimera((cls.dim1, cls.dim2))
         cls.data = nx_to_pytorch(cls.g)
-        cls.data.cuda()
 
-        cls.model = NodeCentric(1, 3, 1, 4)
-        cls.model.cuda()
+        cls.node = NodeCentric(4, cls.node_par1, 1, cls.node_par2)
+        cls.edge = EdgeCentric(4, cls.edge_par1, 1, cls.edge_par2)
 
-    def test_shape(self):
-        print(self.data.edge_attr)
+        if cls.cuda:
+            cls.data.cuda()
+            cls.node.cuda()
+            cls.edge.cuda()
+
+        cls.node_sol = cls.node(cls.data.x, cls.data.edge_index, cls.data.edge_attr)
+        cls.edge_sol = cls.edge(cls.data.x, cls.data.edge_index, cls.data.edge_attr)
+
+    def test_node(self):
+        self.assertEqual(list(self.node_sol.shape), [self.data.num_nodes, self.node_par1 + self.node_par2])
+
+
+    def test_edge(self):
+        self.assertEqual(list(self.edge_sol.shape), [self.data.num_edges, self.edge_par1 + self.edge_par2])
 
 
 if __name__ == '__main__':

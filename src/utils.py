@@ -1,4 +1,4 @@
-"""Various useful helper functions"""
+
 
 import torch
 import networkx as nx
@@ -41,45 +41,6 @@ def plot_graph(graph, attributes=True):
         nx.draw(g)
 
     plt.show()
-
-
-def add_neighbours(x, edge_index): # hacked, but it works
-    """
-    For each edge it gives sum of its adjacent vertexes. Result is in matrix form corresponding to matrix of
-    edge features.
-    :param x: matrix of edge features
-    :param edge_index: edge_index of graph
-    :return: matrix of size [E, num_of_node_features]
-    """
-    added = []
-    for edge in edge_index.t().tolist():
-        added.append(x[edge[0]] + x[edge[1]])
-
-    return torch.stack(added)
-
-
-def add_edges(x, edge_index, edge_attr):  # also hacked, but i don't have better idea
-    """
-    For each vertex it adds edge features of adjacent edges
-    :param x: matrix of edge features
-    :param edge_index: edge_index of graph
-    :param edge_attr: min size [E,2]
-    :return:  matrix of size [N, num_of_edge_features]
-    """
-    added = []
-    for node in range(x.size()[0]):
-        adjacent_edges = []
-        sum_of_edges = torch.zeros(edge_attr.size()[1]).to(device)
-        for index, edge in enumerate(edge_index.t().tolist()):
-            if edge[0] == node:
-                adjacent_edges.append(index)
-        for index in adjacent_edges:
-            sum_of_edges += edge_attr[index]
-
-        added.append(sum_of_edges)
-
-    added = torch.stack(added)
-    return added
 
 
 def compute_energy(data):
@@ -127,6 +88,5 @@ def gauge_transformation(data):
         new_data.edge_attr[i] = graph.edge_attr[i] * t[edge[0]] * t[edge[1]]
 
     return new_data
-
 
 
