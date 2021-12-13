@@ -6,7 +6,7 @@ import torch
 import math
 from tqdm import tqdm
 from DIRAC import DIRAC
-from enviroment import IsingGraph2dRandom, IsingGraph2d
+from environment import IsingGraph2dRandom, IsingGraph2d
 from utils import compute_energy
 import pandas as pd
 from itertools import count

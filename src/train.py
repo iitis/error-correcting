@@ -4,9 +4,9 @@ import csv
 import random as rn
 import torch.optim as optim
 import torch.nn as nn
-from enviroment import IsingGraph2dRandom, IsingGraph2d
+from environment import IsingGraph2dRandom, IsingGraph2d
 from utils import compute_energy
-from DIRAC import DIRAC, ReplayMemory, Transition
+from DIRAC import DIRAC
 from itertools import count
 from tqdm import tqdm
 from torch_geometric.data import Batch
@@ -18,6 +18,7 @@ VAL_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/grap
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
 BATCH_SIZE = 64
 GAMMA = 0.999
 EPS_START = 1.0
@@ -25,6 +26,7 @@ EPS_END = 0.05
 EPS_DECAY = 225
 NUM_EPISODES = 1000
 TARGET_UPDATE = 10
+
 
 policy_net = DIRAC().to(device)
 target_net = DIRAC().to(device)
@@ -38,9 +40,7 @@ optimizer = optim.Adam(policy_net.parameters())
 # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
 
-env = IsingGraph2dRandom((3, 3))
-
-memory = ReplayMemory(10000)  # maybe use n-step transition?
+ # maybe use n-step transition?
 
 steps_done = 0
 

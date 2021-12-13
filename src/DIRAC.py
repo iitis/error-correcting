@@ -16,41 +16,45 @@ class SGNN(nn.Module):
     def __init__(self):
         super(SGNN, self).__init__()
 
-        self.edge1 = EdgeCentric(2, 2, 1, 2)  # edge [E, 4]
-        self.node1 = NodeCentric(2, 2, 4, 5)  # node [N, 7]
-        self.edge2 = EdgeCentric(7, 9, 4, 5)  # edge [E, 14]
-        self.node2 = NodeCentric(7, 9, 14, 15)  # node [N, 24]
-        self.edge3 = EdgeCentric(24, 30, 14, 15)  # edge [E, 45]
-        self.node3 = NodeCentric(24, 30, 45, 15)  # node [N, 45]
-        self.edge4 = EdgeCentric(45, 20, 45, 15)  # edge [E, 35]
-        self.node4 = NodeCentric(45, 20, 35, 10)  # node [N, 30]
-        self.edge5 = EdgeCentric(30, 3, 35, 2)  # edge [E, 5]
-        self.node5 = NodeCentric(30, 3, 5, 2)  # node [N, 5]
+        self.edge1 = EdgeCentric(3, 6, 1, 2)  # Edge 1->8
+        self.node1 = NodeCentric(3, 6, 8, 10)  # Node 4->16
 
-    def forward(self, data):
-        x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
-        x.to(device)
-        edge_index.to(device)
-        edge_attr.to(device)
-        data.cuda()
+        self.edge2 = EdgeCentric(16, 32, 8, 16)  # Edge 8->48
+        self.node2 = NodeCentric(16, 32, 48, 24)  # Node 16->56
 
-        data.edge_attr = F.relu(self.edge1(data))
-        data.x = F.relu(self.node1(data))
-        data.edge_attr = F.relu(self.edge2(data))
-        data.x = F.relu(self.node2(data))
-        data.edge_attr = F.relu(self.edge3(data))
-        data.x = F.relu(self.node3(data))
-        data.edge_attr = F.relu(self.edge4(data))
-        data.x = F.relu(self.node4(data))
-        data.edge_attr = F.relu(self.edge5(data))
-        data.x = F.relu(self.node5(data))
+        self.edge3 = EdgeCentric(56, 24, 48, 24)  # Edge 48->48
+        self.node3 = NodeCentric(56, 24, 48, 24)  # Node 56->48
 
-        action_embedding = data.x  # node attributes [N, 5]
-        state_embedding = torch.sum(action_embedding, dim=0)  # [1, 5]
+        self.edge4 = EdgeCentric(48, 13, 48, 13)  # Edge 48->26
+        self.node4 = NodeCentric(48, 13, 26, 8)  # Node 48->21
+
+        self.edge5 = EdgeCentric(21, 3, 26, 3)  # Edge 26->6
+        self.node5 = NodeCentric(21, 3, 6, 3)  # Node 4->6
+
+    def forward(self, x, edge_index, edge_attr):
+
+        edge_attr = F.relu(self.edge1(x, edge_index, edge_attr))
+        x = F.relu(self.node1(x, edge_index, edge_attr))
+
+        edge_attr = F.relu(self.edge2(x, edge_index, edge_attr))
+        x = F.relu(self.node2(x, edge_index, edge_attr))
+
+        edge_attr = F.relu(self.edge3(x, edge_index, edge_attr))
+        x = F.relu(self.node3(x, edge_index, edge_attr))
+
+        edge_attr = F.relu(self.edge4(x, edge_index, edge_attr))
+        x = F.relu(self.node4(x, edge_index, edge_attr))
+
+        edge_attr = F.relu(self.edge5(x, edge_index, edge_attr))
+        x = F.relu(self.node5(x, edge_index, edge_attr))
+
+        action_embedding = x  # node attributes [N, 6]
+        state_embedding = torch.sum(action_embedding, dim=0)  # [1, 6]
+        # add virtual empty first dimensions (in pytorch size [1,6] is just [6])
         state_embedding = state_embedding[None, :]
-        state_embedding = state_embedding.repeat(data.x.size()[0], 1)  # change od dimenstions to later concanate
+        state_embedding = state_embedding.repeat(x.size()[0], 1)  # change od dimensions to later concatenate
 
-        output = torch.cat((action_embedding, state_embedding), dim=1)  # [N, 10]
+        output = torch.cat((state_embedding, action_embedding), dim=1)  # [N, 12]
 
         return output
 
@@ -63,7 +67,7 @@ class DIRAC(nn.Module):
         self.dim = dim
         self.encoder = SGNN().to(device)
 
-        self.fc1 = nn.Linear(10, 100)
+        self.fc1 = nn.Linear(12, 100)
         self.fc2 = nn.Linear(100, 25)
         self.fc3 = nn.Linear(25, 1)
 
@@ -99,7 +103,7 @@ class EdgeCentric(nn.Module):
         x = self.fcx(x)
         edge_attr = self.fce(edge_attr)
 
-        return F.relu(torch.cat((x, edge_attr), dim=1))
+        return torch.cat((x, edge_attr), dim=1)
 
 
 class NodeCentric(nn.Module):
@@ -117,26 +121,5 @@ class NodeCentric(nn.Module):
         x = self.fcx(x)
         edge_attr = self.fce(adj)
 
-        return F.relu(torch.cat((x, edge_attr), dim=1))
-
-
-Transition = namedtuple('Transition',
-                        ('state', 'action', 'next_state', 'reward'))
-
-
-class ReplayMemory(object):
-
-    def __init__(self, capacity):
-        self.memory = deque([], maxlen=capacity)
-
-    def push(self, *args):
-        """Save a transition"""
-        self.memory.append(Transition(*args))
-
-    def sample(self, batch_size):
-        return random.sample(self.memory, batch_size)
-
-    def __len__(self):
-        return len(self.memory)
-
+        return torch.cat((x, edge_attr), dim=1)
 

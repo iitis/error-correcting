@@ -4,8 +4,8 @@ from matplotlib.pyplot import close
 
 import torch
 from gym import spaces
-from utils import plot_graph, compute_energy, gauge_transformation
-from src.data_gen import generate_ising_lattice
+from utils import plot_graph, compute_energy, gauge_transformation, gauge_transformation_nx, compute_energy_nx
+from src.data_gen import generate_ising_lattice, generate_chimera, nx_to_pytorch
 
 
 class IsingGraph2dRandom(gym.Env):  # this package is badly documented, expect lot of hacking
@@ -91,6 +91,37 @@ class IsingGraph2d(IsingGraph2dRandom):
         self.actions_taken = [1 for x in range(self.action_space.n)]
         self.available_actions = list(range(self.action_space.n))
 
+
+class RandomChimera(gym.Env):
+    def __init__(self, dim):
+        super(RandomChimera, self).__init__()
+
+        self.chimera = gauge_transformation_nx(generate_chimera(dim))  # transformed
+        self.data = nx_to_pytorch(self.chimera)
+
+        self.action_space = spaces.Discrete(self.data.num_nodes)
+
+    def step(self, action: int):
+
+        assert self.action_space.contains(action), "Invalid Action"
+
+        done = False
+        info = action
+
+        old_data = self.data.clone()
+        self.data = self.flip_spin(action)
+        reward = compute_energy(old_data) - compute_energy(self.data)
+
+        next_state = self.data
+
+        self.actions_taken[action] = -inf
+
+        if self.actions_taken == self.done_list:
+            done = True
+
+        self.available_actions.remove(action)
+
+        return next_state, reward, done, info
 
 
 

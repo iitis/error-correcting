@@ -173,6 +173,21 @@ def generate_chimera(dim, distribution="gauss", params=None, spin_conf="random")
     external_list = [(v, v) for v in g.nodes()]
     g.add_edges_from(external_list)
 
+    #create position attribute
+    i, j, c = 1.0, 1.0, 0.0
+    position = {}
+    for node in g.nodes:
+
+        if c % 8 == 0 and c > 0:
+            j += 1
+            if j > m:
+                i += 1
+                j = 1
+        pos = [i, j]
+        position[node] = pos
+        c += 1
+    set_node_attributes(g, position, "position")
+
     # create couplings
     if distribution == "gauss":
         if params is None:
@@ -205,6 +220,6 @@ def nx_to_pytorch(graph):
     :return: pytorch geometric data
     """
 
-    data = from_networkx(graph, ["spin"], ["coupling"])
+    data = from_networkx(graph, ["bipartite", "position"], ["coupling"])
 
     return data

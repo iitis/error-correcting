@@ -90,3 +90,26 @@ def gauge_transformation(data):
     return new_data
 
 
+def gauge_transformation_nx(nx_graph):
+
+    graph = nx_graph.copy()  # to avoid making changes in original graph
+    t_list = list(nx.get_node_attributes(graph, "spin").values())
+    for i in range(graph.number_of_nodes()):
+        graph.nodes[i]["spin"] = [t_list[i][0] ** 2]
+    for i, j, data in graph.edges.data():
+        data["coupling"] = [t_list[i][0] * t_list[j][0] * data["coupling"][0]]
+
+    t_node = {node: t_list[node] for node in graph.nodes}
+    nx.set_node_attributes(graph, t_node, "t")
+
+    return graph
+
+
+def compute_energy_nx(nx_graph):
+    graph = nx_graph.copy()
+
+    spins = list(nx.get_node_attributes(graph, "spin").values())
+    s = 0
+    for i, j, data in graph.edges.data():
+        s -= data["coupling"][0] * spins[i][0] * spins[j][0]
+    return s
