@@ -16,8 +16,8 @@ class SGNN(nn.Module):
     def __init__(self):
         super(SGNN, self).__init__()
 
-        self.edge1 = EdgeCentric(3, 6, 1, 2)  # Edge 1->8
-        self.node1 = NodeCentric(3, 6, 8, 10)  # Node 4->16
+        self.edge1 = EdgeCentric(5, 6, 1, 2)  # Edge 1->8
+        self.node1 = NodeCentric(5, 6, 8, 10)  # Node 4->16
 
         self.edge2 = EdgeCentric(16, 32, 8, 16)  # Edge 8->48
         self.node2 = NodeCentric(16, 32, 48, 24)  # Node 16->56

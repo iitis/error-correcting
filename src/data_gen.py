@@ -169,11 +169,7 @@ def generate_chimera(dim, distribution="gauss", params=None, spin_conf="random")
     g.add_edges_from(horizontal_edges)
     g.add_edges_from(vertical_edges)
 
-    # External field is represented as self-loops
-    external_list = [(v, v) for v in g.nodes()]
-    g.add_edges_from(external_list)
-
-    #create position attribute
+    # create position attribute
     i, j, c = 1.0, 1.0, 0.0
     position = {}
     for node in g.nodes:
@@ -193,12 +189,15 @@ def generate_chimera(dim, distribution="gauss", params=None, spin_conf="random")
         if params is None:
             params = [0, 1]
         edge_attr = {edge: [rn.gauss(params[0], params[1])] for edge in g.edges}
+        external = {node: [rn.gauss(params[0], params[1])] for node in g.nodes}
     if distribution == "uniform":
         if params is None:
             params = [-2, 2]
         edge_attr = {edge: [rn.uniform(params[0], params[1])] for edge in g.edges}
+        external = {node: [rn.uniform(params[0], params[1])] for node in g.nodes}
 
     set_edge_attributes(g, edge_attr, "coupling")
+    set_node_attributes(g, external, "external")
 
     # create coupling
     if spin_conf == "random":
@@ -220,6 +219,6 @@ def nx_to_pytorch(graph):
     :return: pytorch geometric data
     """
 
-    data = from_networkx(graph, ["bipartite", "position"], ["coupling"])
+    data = from_networkx(graph, ["spin", "external", "bipartite", "position"], ["coupling"])
 
     return data

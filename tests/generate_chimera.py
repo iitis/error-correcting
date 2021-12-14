@@ -33,11 +33,11 @@ class TestChimeraGeneration(unittest.TestCase):
         max_degree = max(self.g.degree, key=lambda x: x[1])[1]
         min_degree = min(self.g.degree, key=lambda x: x[1])[1]
         if self.dim1 <= 2 or self.dim2 <= 2:
-            self.assertTrue(max_degree == 7)
-            self.assertTrue(min_degree == 7)
+            self.assertTrue(max_degree == 5)
+            self.assertTrue(min_degree == 5)
         else:
-            self.assertTrue(max_degree == 8)
-            self.assertTrue(min_degree == 7)
+            self.assertTrue(max_degree == 6)
+            self.assertTrue(min_degree == 5)
 
     def test_attributes(self):
         self.assertEqual(len(nx.get_node_attributes(self.g, "spin")), len(self.g.nodes))
@@ -47,12 +47,12 @@ class TestChimeraGeneration(unittest.TestCase):
         data = nx_to_pytorch(self.g)
 
         self.assertEqual(self.g.number_of_nodes(), data.num_nodes)
-        self.assertEqual(self.g.size(), data.num_edges/2 + data.num_nodes/2)
+        self.assertEqual(self.g.size(), data.num_edges/2)
 
         self.assertIsNotNone(data.x)
         self.assertIsNotNone(data.edge_attr)
 
-        self.assertEqual(list(data.x.shape), [data.num_nodes, 1])
+        self.assertEqual(list(data.x.shape), [data.num_nodes, 5])
         self.assertEqual(list(data.edge_attr.shape), [data.num_edges, 1])
 
 

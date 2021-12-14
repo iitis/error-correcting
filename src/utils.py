@@ -108,8 +108,12 @@ def gauge_transformation_nx(nx_graph):
 def compute_energy_nx(nx_graph):
     graph = nx_graph.copy()
 
-    spins = list(nx.get_node_attributes(graph, "spin").values())
+    attr = nx.get_node_attributes(graph, "spin").values()
+    external = list(nx.get_node_attributes(graph, "external").values())
+    spins = list(attr)
     s = 0
     for i, j, data in graph.edges.data():
         s -= data["coupling"][0] * spins[i][0] * spins[j][0]
+    for i in range(len(spins)):
+        s -= spins[i][0] * external[i][0]
     return s

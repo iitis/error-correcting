@@ -4,7 +4,7 @@ from matplotlib.pyplot import close
 
 import torch
 from gym import spaces
-from utils import plot_graph, compute_energy, gauge_transformation, gauge_transformation_nx, compute_energy_nx
+from src.utils import plot_graph, compute_energy, gauge_transformation, gauge_transformation_nx, compute_energy_nx
 from src.data_gen import generate_ising_lattice, generate_chimera, nx_to_pytorch
 
 
@@ -96,10 +96,10 @@ class RandomChimera(gym.Env):
     def __init__(self, dim):
         super(RandomChimera, self).__init__()
 
-        self.chimera = gauge_transformation_nx(generate_chimera(dim))  # transformed
-        self.data = nx_to_pytorch(self.chimera)
+        self.dim = dim
+        self.chimera = gauge_transformation_nx(generate_chimera(self.dim))  # transformed
 
-        self.action_space = spaces.Discrete(self.data.num_nodes)
+        self.action_space = spaces.Discrete(self.chimera.number_of_nodes())
 
     def step(self, action: int):
 
@@ -107,21 +107,22 @@ class RandomChimera(gym.Env):
 
         done = False
         info = action
+        old_chimera = self.chimera.clone()
+        self.chimera = self.flip_spin(self.chimera)
 
-        old_data = self.data.clone()
-        self.data = self.flip_spin(action)
-        reward = compute_energy(old_data) - compute_energy(self.data)
+        reward = compute_energy_nx()
 
-        next_state = self.data
+        #return next_state, reward, done, info
 
-        self.actions_taken[action] = -inf
+    def reset(self):
+        # new instance
+        self.chimera = gauge_transformation_nx(generate_chimera(self.dim))  # transformed
 
-        if self.actions_taken == self.done_list:
-            done = True
+    def flip_spin(self, action):
+        graph = self.chimera
 
-        self.available_actions.remove(action)
-
-        return next_state, reward, done, info
-
-
+    def compute_reward(self, nx_graph, action: int):
+        delta_i = nx_graph.neighbors(action)
+        g = nx_graph.subgraph(delta_i)
+        print(delta_i)
 
