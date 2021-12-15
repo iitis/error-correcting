@@ -212,13 +212,3 @@ def generate_chimera(dim, distribution="gauss", params=None, spin_conf="random")
     return g
 
 
-def nx_to_pytorch(graph):
-    """
-    This function assumes that node attributes are called "spin" and edge attributes are called "coupling"
-    :param graph: networkx Graph
-    :return: pytorch geometric data
-    """
-
-    data = from_networkx(graph, ["spin", "external", "bipartite", "position"], ["coupling"])
-
-    return data

@@ -4,20 +4,20 @@ import csv
 import random as rn
 import torch.optim as optim
 import torch.nn as nn
-from environment import IsingGraph2dRandom, IsingGraph2d
-from utils import compute_energy
-from DIRAC import DIRAC
+from src.environment import RandomChimera
+from src.utils import nx_to_pytorch
+from src.DIRAC import DIRAC
 from itertools import count
 from tqdm import tqdm
 from torch_geometric.data import Batch
 from statistics import mean
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# global constants
 PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/model_big.pt"
 CHECKPOINT_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/model_checkpoint.pt"
 VAL_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/graph_reward_track.pt"
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 BATCH_SIZE = 64
 GAMMA = 0.999
@@ -26,21 +26,57 @@ EPS_END = 0.05
 EPS_DECAY = 225
 NUM_EPISODES = 1000
 TARGET_UPDATE = 10
+CHECKPOINT = False
 
-
+# Models and optimizer
 policy_net = DIRAC().to(device)
 target_net = DIRAC().to(device)
 target_net.load_state_dict(policy_net.state_dict())
 target_net.eval()
 optimizer = optim.Adam(policy_net.parameters())
 
-# checkpoint = torch.load(PATH)
-# policy_net.load_state_dict(checkpoint['model_state_dict'])
-# target_net.load_state_dict(checkpoint['model_state_dict'])
-# optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+if CHECKPOINT:
+    checkpoint = torch.load(PATH)
+    policy_net.load_state_dict(checkpoint['model_state_dict'])
+    target_net.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+# Global variables
+env = RandomChimera((2, 2))
+steps_done = 0
+
+# maybe use n-step transition?
+
+# For start we wil train for 1000 episodes on C_2.
+# Next step will be variable C (probably C_1 - C_5)
 
 
- # maybe use n-step transition?
+def chose_action(environment):
+
+    global steps_done
+
+    sample = rn.random()
+    eps_threshold = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * steps_done / EPS_DECAY)  # epsilon decay
+    if sample > eps_threshold:
+        with torch.no_grad():
+            pass
+    else:
+        return rn.choice(environment.available_actions)
+
+
+if __name__ == "main":
+
+    for episode in range(NUM_EPISODES):
+
+        # Initialize the environment and state
+        env.reset()
+
+
+
+
+
+
+"""
 
 steps_done = 0
 
@@ -184,6 +220,6 @@ for episode in tqdm(range(NUM_EPISODES)):
         'model_state_dict': policy_net.state_dict(),
         'optimizer_state_dict': optimizer.state_dict()}, CHECKPOINT_PATH)
 
-
+"""
 
 

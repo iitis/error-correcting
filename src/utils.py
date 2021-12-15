@@ -1,10 +1,11 @@
-
-
 import torch
 import networkx as nx
 import matplotlib.pyplot as plt
-from torch_geometric.utils import to_networkx
+import random as rn
+
+from torch_geometric.utils import to_networkx, from_networkx
 from torch_geometric.data import Data
+from collections import namedtuple, deque
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -108,12 +109,48 @@ def gauge_transformation_nx(nx_graph):
 def compute_energy_nx(nx_graph):
     graph = nx_graph.copy()
 
-    attr = nx.get_node_attributes(graph, "spin").values()
-    external = list(nx.get_node_attributes(graph, "external").values())
-    spins = list(attr)
+    spins = nx.get_node_attributes(graph, "spin")
+    external = nx.get_node_attributes(graph, "external")
+
     s = 0
-    for i, j, data in graph.edges.data():
+    for i, j, data in graph.edges(data=True):
         s -= data["coupling"][0] * spins[i][0] * spins[j][0]
-    for i in range(len(spins)):
+    for i in spins.keys():
         s -= spins[i][0] * external[i][0]
     return s
+
+
+def nx_to_pytorch(graph):
+    """
+    This function assumes that node attributes are called "spin" and edge attributes are called "coupling"
+    :param graph: networkx Graph
+    :return: pytorch geometric data
+    """
+
+    data = from_networkx(graph, ["spin", "external", "bipartite", "position"], ["coupling"])
+
+    return data
+
+
+Trajectory = namedtuple('Trajectory', ('state', 'action', 'reward'))
+
+
+class TrajectoryMemory(object):
+
+    def __init__(self, capacity):
+        self.memory = deque([], maxlen=capacity)
+
+    def push(self, *args):
+        """Save a transition"""
+        self.memory.append(Trajectory(*args))
+
+    def sample(self, batch_size):
+        return rn.sample(self.memory, batch_size)
+
+    def __len__(self):
+        return len(self.memory)
+
+
+class NStepTransition(object):
+    def __init__(self, capacity):
+        self.memory = deque([], maxlen=capacity)

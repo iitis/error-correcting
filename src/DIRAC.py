@@ -29,7 +29,7 @@ class SGNN(nn.Module):
         self.node4 = NodeCentric(48, 13, 26, 8)  # Node 48->21
 
         self.edge5 = EdgeCentric(21, 3, 26, 3)  # Edge 26->6
-        self.node5 = NodeCentric(21, 3, 6, 3)  # Node 4->6
+        self.node5 = NodeCentric(21, 3, 6, 3)  # Node 21->6
 
     def forward(self, x, edge_index, edge_attr):
 

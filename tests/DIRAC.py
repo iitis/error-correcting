@@ -1,5 +1,6 @@
 import unittest
 import torch
+import torch.nn as nn
 
 from src.DIRAC import NodeCentric, EdgeCentric, SGNN
 from src.data_gen import generate_chimera, nx_to_pytorch
@@ -9,7 +10,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class TestDIRAC(unittest.TestCase):
 
-    cuda = False
+    cuda = True
+    parallel = False
     dim1 = 2
     dim2 = 2
     node_par1 = 2
@@ -22,8 +24,8 @@ class TestDIRAC(unittest.TestCase):
         cls.g = generate_chimera((cls.dim1, cls.dim2))
         cls.data = nx_to_pytorch(cls.g)
 
-        cls.node = NodeCentric(3, cls.node_par1, 1, cls.node_par2)
-        cls.edge = EdgeCentric(3, cls.edge_par1, 1, cls.edge_par2)
+        cls.node = NodeCentric(5, cls.node_par1, 1, cls.node_par2)
+        cls.edge = EdgeCentric(5, cls.edge_par1, 1, cls.edge_par2)
         cls.sgnn = SGNN()
 
         if cls.cuda:
@@ -31,6 +33,12 @@ class TestDIRAC(unittest.TestCase):
             cls.node.cuda()
             cls.edge.cuda()
             cls.sgnn.cuda()
+
+        if cls.parallel:
+            cls.data = nn.DataParallel(cls.data)
+            cls.node = nn.DataParallel(cls.node)
+            cls.edge = nn.DataParallel(cls.edge)
+            cls.sgnn = nn.DataParallel(cls.sgnn)
 
         cls.node_sol = cls.node(cls.data.x, cls.data.edge_index, cls.data.edge_attr)
         cls.edge_sol = cls.edge(cls.data.x, cls.data.edge_index, cls.data.edge_attr)

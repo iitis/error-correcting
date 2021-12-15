@@ -1,7 +1,8 @@
 import unittest
 import networkx as nx
 import matplotlib.pyplot as plt
-from src.data_gen import generate_chimera, nx_to_pytorch
+from src.data_gen import generate_chimera
+from src.utils import nx_to_pytorch
 
 
 class TestChimeraGeneration(unittest.TestCase):

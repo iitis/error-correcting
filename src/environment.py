@@ -100,6 +100,8 @@ class RandomChimera(gym.Env):
         self.chimera = gauge_transformation_nx(generate_chimera(self.dim))  # transformed
 
         self.action_space = spaces.Discrete(self.chimera.number_of_nodes())
+        self.done_counter = 0
+        self.available_actions = list(range(self.chimera.number_of_nodes()))
 
     def step(self, action: int):
 
@@ -107,22 +109,33 @@ class RandomChimera(gym.Env):
 
         done = False
         info = action
-        old_chimera = self.chimera.clone()
-        self.chimera = self.flip_spin(self.chimera)
+        self.chimera = self.flip_spin(action)
+        self.done_counter += 1
+        next_state = self.chimera.copy()
+        reward = self.compute_reward(self.chimera, action)
 
-        reward = compute_energy_nx()
+        if self.done_counter == self.chimera.number_of_nodes():
+            done = True
 
-        #return next_state, reward, done, info
+        return next_state, reward, done, info
 
     def reset(self):
         # new instance
         self.chimera = gauge_transformation_nx(generate_chimera(self.dim))  # transformed
+        self.done_counter = 0
+        self.available_actions = list(range(self.chimera.number_of_nodes()))
 
     def flip_spin(self, action):
         graph = self.chimera
+        graph.nodes[action]["spin"] = [-1]
+        return graph
 
     def compute_reward(self, nx_graph, action: int):
-        delta_i = nx_graph.neighbors(action)
+
+        delta_i = list(nx_graph.neighbors(action))
+        delta_i.append(action)  # to include node itself
         g = nx_graph.subgraph(delta_i)
-        print(delta_i)
+
+        return -2 * compute_energy_nx(g)  # "-2" because we want to to minimize energy
+
 
