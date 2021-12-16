@@ -1,6 +1,7 @@
 import torch
 import random as rn
 import networkx as nx
+import pandas as pd
 
 from torch_geometric.utils import from_networkx, to_undirected
 from networkx.generators.lattice import grid_graph
@@ -9,6 +10,7 @@ from networkx.classes.function import set_edge_attributes, set_node_attributes
 from torch_geometric.loader import DataLoader
 from torch_geometric.data import Data, InMemoryDataset, Batch
 from collections import defaultdict
+
 
 class IsingDataset2d(InMemoryDataset):
 
@@ -199,7 +201,7 @@ def generate_chimera(dim, distribution="gauss", params=None, spin_conf="random")
     set_edge_attributes(g, edge_attr, "coupling")
     set_node_attributes(g, external, "external")
 
-    # create coupling
+    # create spin conf
     if spin_conf == "random":
         spins = {node: rn.choice([[-1.0], [1.0]]) for node in g.nodes}
     if spin_conf == "all_up":
@@ -209,6 +211,67 @@ def generate_chimera(dim, distribution="gauss", params=None, spin_conf="random")
 
     set_node_attributes(g, spins, "spin")
 
+    return g
+
+
+def generate_chimera_from_csv(file, spin_conf="random"):
+    """
+    Generates chimera with random spins from csv file
+    :param spin_conf:
+    :param file:
+    :return:
+    """
+    chimera_csv = pd.read_csv(file, index_col=0)
+    num_of_nodes = chimera_csv["0"].max()
+    num_of_cells = num_of_nodes/8
+    dim = num_of_cells ** (1/2)
+    n = int(dim)
+    m = int(dim)
+
+    list_of_graphs = [nx.complete_bipartite_graph(4, 4) for x in range(int(num_of_cells))]
+    g = disjoint_union_all(list_of_graphs)
+
+    # I have found these formulas by hand, k is in range four because we have 4x4 complete bipartite graph
+    horizontal_edges = [(8 * row * m + 8 * column + 4 + k, 8 * row * m + 8 * column + 12 + k) for row in range(n)
+                        for column in range(m - 1) for k in range(4)]
+
+    vertical_edges = [(8 * row * m + 8 * column + k, 8 * row * m + 8 * column + 8 * m + k) for row in range(n - 1)
+                      for column in range(m) for k in range(4)]
+
+    g.add_edges_from(horizontal_edges)
+    g.add_edges_from(vertical_edges)
+
+    # create position attribute
+    i, j, c = 1.0, 1.0, 0.0
+    position = {}
+    for node in g.nodes:
+
+        if c % 8 == 0 and c > 0:
+            j += 1
+            if j > m:
+                i += 1
+                j = 1
+        pos = [i, j]
+        position[node] = pos
+        c += 1
+    set_node_attributes(g, position, "position")
+
+    # create spin conf
+    if spin_conf == "random":
+        spins = {node: rn.choice([[-1.0], [1.0]]) for node in g.nodes}
+    if spin_conf == "all_up":
+        x = {node: [1.0] for node in g.nodes}
+    elif spin_conf == "all_down":
+        x = {node: [-1.0] for node in g.nodes}
+
+    set_node_attributes(g, spins, "spin")
+
+    # create couplings and external magnetic field
+    edge_attr = {}
+    external = {}
+    for index, row in chimera_csv.iterrows():
+        if row[0] == row[1]:
+            pass
     return g
 
 

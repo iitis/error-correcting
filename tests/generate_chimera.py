@@ -1,7 +1,7 @@
 import unittest
 import networkx as nx
 import matplotlib.pyplot as plt
-from src.data_gen import generate_chimera
+from src.data_gen import generate_chimera, generate_chimera_from_csv
 from src.utils import nx_to_pytorch
 
 
@@ -53,8 +53,22 @@ class TestChimeraGeneration(unittest.TestCase):
         self.assertIsNotNone(data.x)
         self.assertIsNotNone(data.edge_attr)
 
-        self.assertEqual(list(data.x.shape), [data.num_nodes, 5])
+        self.assertEqual(list(data.x.shape), [data.num_nodes, 4])
         self.assertEqual(list(data.edge_attr.shape), [data.num_edges, 1])
+
+
+class TestChimeraCSV(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        chimera_path = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/chimera_512_002.csv"
+        cls.g = generate_chimera_from_csv(chimera_path)
+
+    def test_degrees(self):
+        # degrees with self-loops
+        max_degree = max(self.g.degree, key=lambda x: x[1])[1]
+        min_degree = min(self.g.degree, key=lambda x: x[1])[1]
+        self.assertTrue(max_degree == 6)
+        self.assertTrue(min_degree == 5)
 
 
 if __name__ == '__main__':
