@@ -4,19 +4,22 @@ import csv
 import random as rn
 import torch.optim as optim
 import torch.nn as nn
+
 from src.environment import RandomChimera
-from src.utils import nx_to_pytorch
+from src.utils import nx_to_pytorch, TransitionMemory, sum_rewards
 from src.DIRAC import DIRAC
 from itertools import count
 from tqdm import tqdm
 from torch_geometric.data import Batch
 from statistics import mean
+from math import inf
+from collections import deque
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # global constants
-PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/model_big.pt"
-CHECKPOINT_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/model_checkpoint.pt"
+PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/models/model_big.pt"
+CHECKPOINT_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/models/model_checkpoint.pt"
 VAL_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/graph_reward_track.pt"
 
 BATCH_SIZE = 64
@@ -24,13 +27,15 @@ GAMMA = 0.999
 EPS_START = 1.0
 EPS_END = 0.05
 EPS_DECAY = 225
-NUM_EPISODES = 1000
+NUM_EPISODES = 1
 TARGET_UPDATE = 10
+N = 10
 CHECKPOINT = False
+INCLUDE_SPIN = False
 
 # Models and optimizer
-policy_net = DIRAC().to(device)
-target_net = DIRAC().to(device)
+policy_net = DIRAC(include_spin=INCLUDE_SPIN).to(device)
+target_net = DIRAC(include_spin=INCLUDE_SPIN).to(device)
 target_net.load_state_dict(policy_net.state_dict())
 target_net.eval()
 optimizer = optim.Adam(policy_net.parameters())
@@ -42,8 +47,12 @@ if CHECKPOINT:
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
 # Global variables
-env = RandomChimera((2, 2))
+env = RandomChimera((2, 2), include_spin=INCLUDE_SPIN)
 steps_done = 0
+validation_score = inf
+memory = TransitionMemory(100000)  # n-step transition
+q_values_global = None
+
 
 # maybe use n-step transition?
 
@@ -51,28 +60,85 @@ steps_done = 0
 # Next step will be variable C (probably C_1 - C_5)
 
 
-def chose_action(environment):
+def select_action(environment):
 
     global steps_done
+    global q_values_global
 
     sample = rn.random()
     eps_threshold = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * steps_done / EPS_DECAY)  # epsilon decay
+    state = environment.state.to(device)
     if sample > eps_threshold:
         with torch.no_grad():
-            pass
+            # Here choice really depends on INCLUDE_SPIN, if True then q_values_global is None
+            if q_values_global is None:
+                q_values = policy_net(state)
+
+                mask = torch.tensor(env.mask, device=device)  # used to mask available actions
+                q_values = torch.add(q_values, 1E-8)  # to avoid 0 * -inf
+                action = mask * q_values
+                return action.argmax().item()
+            else:
+                mask = torch.tensor(env.mask, device=device)  # used to mask available actions
+                q_values_global = torch.add(q_values_global, 1E-8)  # to avoid 0 * -inf
+                action = mask * q_values_global
+                return action.argmax().item()
     else:
         return rn.choice(environment.available_actions)
 
 
-if __name__ == "main":
+
+
+if __name__ == "__main__":
 
     for episode in range(NUM_EPISODES):
 
         # Initialize the environment and state
         env.reset()
+        trajectory = deque([], maxlen=10000)
 
+        # Initialize if we include spin or not
+        if INCLUDE_SPIN:
+            q_values_global = None
+        else:
+            with torch.no_grad():
+                q_values_global = policy_net(env.state.to(device))
 
+        # Perform actions
+        for t in count():
+            # Select and perform an action
+            state = env.state
+            action = select_action(env)
+            _, reward, done, _ = env.step(action)
 
+            # Store the transition in memory
+            trajectory.append([state, action, reward])
+
+            # Perform one step of the optimization (on the policy network)
+            #optimize_model()
+            if done:  # it is done when model performs final spin flip
+                break
+
+        for k in range(len(trajectory) - N):
+            # state, action reward_n, state_n
+            reward_n = sum_rewards(trajectory, k, N)
+            memory.push(trajectory[k][0], trajectory[k][1], reward_n, trajectory[k+N][0])
+
+        steps_done += 1
+
+"""
+        if episode % TARGET_UPDATE == 0:
+            target_net.load_state_dict(policy_net.state_dict())
+            validation_score_new = validate()
+
+            if validation_score_new < validation_score:
+                validation_score = validation_score_new
+                torch.save({
+                    'episode': episode,
+                    'validation_score': validation_score,
+                    'model_state_dict': policy_net.state_dict()}, PATH)
+
+"""
 
 
 

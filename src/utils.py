@@ -120,29 +120,37 @@ def compute_energy_nx(nx_graph):
     return s
 
 
-def nx_to_pytorch(graph):
+def nx_to_pytorch(graph, include_spin = False):
     """
     This function assumes that node attributes are called "spin" and edge attributes are called "coupling"
     :param graph: networkx Graph
     :return: pytorch geometric data
     """
-
-    data = from_networkx(graph, ["spin", "external", "bipartite", "position"], ["coupling"])
-
+    if include_spin:
+        data = from_networkx(graph, ["spin", "external", "bipartite", "position"], ["coupling"])
+    else:
+        data = from_networkx(graph, ["external", "bipartite", "position"], ["coupling"])
     return data
 
 
-Trajectory = namedtuple('Trajectory', ('state', 'action', 'reward'))
+def sum_rewards(trajectory, t, n):
+    s = 0
+    for i in range(t, t+n+1):
+        s += trajectory[i][2]
+    return s
 
 
-class TrajectoryMemory(object):
+n_step_transition = namedtuple('Transition', ('state', 'action', 'reward_n', 'state_n'))
+
+
+class TransitionMemory(object):
 
     def __init__(self, capacity):
         self.memory = deque([], maxlen=capacity)
 
     def push(self, *args):
         """Save a transition"""
-        self.memory.append(Trajectory(*args))
+        self.memory.append(n_step_transition(*args))
 
     def sample(self, batch_size):
         return rn.sample(self.memory, batch_size)
@@ -150,7 +158,3 @@ class TrajectoryMemory(object):
     def __len__(self):
         return len(self.memory)
 
-
-class NStepTransition(object):
-    def __init__(self, capacity):
-        self.memory = deque([], maxlen=capacity)

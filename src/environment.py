@@ -4,8 +4,8 @@ from matplotlib.pyplot import close
 
 import torch
 from gym import spaces
-from src.utils import plot_graph, compute_energy, gauge_transformation, gauge_transformation_nx, compute_energy_nx
-from src.data_gen import generate_ising_lattice, generate_chimera, nx_to_pytorch
+from src.utils import plot_graph, compute_energy, gauge_transformation, gauge_transformation_nx, compute_energy_nx,  nx_to_pytorch
+from src.data_gen import generate_ising_lattice, generate_chimera
 
 
 class IsingGraph2dRandom(gym.Env):  # this package is badly documented, expect lot of hacking
@@ -93,15 +93,18 @@ class IsingGraph2d(IsingGraph2dRandom):
 
 
 class RandomChimera(gym.Env):
-    def __init__(self, dim):
+    def __init__(self, dim, include_spin=False):
         super(RandomChimera, self).__init__()
 
         self.dim = dim
+        self.include_spin = include_spin
         self.chimera = gauge_transformation_nx(generate_chimera(self.dim))  # transformed
+        self.state = nx_to_pytorch(self.chimera, include_spin=self.include_spin)
 
         self.action_space = spaces.Discrete(self.chimera.number_of_nodes())
         self.done_counter = 0
         self.available_actions = list(range(self.chimera.number_of_nodes()))
+        self.mask = [1 for node in self.chimera.nodes]
 
     def step(self, action: int):
 
@@ -109,21 +112,25 @@ class RandomChimera(gym.Env):
 
         done = False
         info = action
-        self.chimera = self.flip_spin(action)
+        self.chimera = self.flip_spin(action)  # here we change state of environment
         self.done_counter += 1
-        next_state = self.chimera.copy()
+        self.state = nx_to_pytorch(self.chimera, include_spin=self.include_spin)
         reward = self.compute_reward(self.chimera, action)
 
         if self.done_counter == self.chimera.number_of_nodes():
             done = True
 
-        return next_state, reward, done, info
+        self.available_actions.remove(action)
+        self.mask[action] = -inf
+        return self.state, reward, done, info
 
     def reset(self):
         # new instance
         self.chimera = gauge_transformation_nx(generate_chimera(self.dim))  # transformed
         self.done_counter = 0
         self.available_actions = list(range(self.chimera.number_of_nodes()))
+        self.mask = [1 for node in self.chimera.nodes]
+        self.state = nx_to_pytorch(self.chimera, include_spin=self.include_spin)
 
     def flip_spin(self, action):
         graph = self.chimera

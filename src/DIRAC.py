@@ -13,11 +13,14 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # implement network as in article
 class SGNN(nn.Module):
 
-    def __init__(self):
+    def __init__(self, include_spin=False):
         super(SGNN, self).__init__()
-
-        self.edge1 = EdgeCentric(5, 6, 1, 2)  # Edge 1->8
-        self.node1 = NodeCentric(5, 6, 8, 10)  # Node 4->16
+        if include_spin:
+            self.edge1 = EdgeCentric(5, 6, 1, 2)  # Edge 1->8
+            self.node1 = NodeCentric(5, 6, 8, 10)  # Node 4->16
+        else:
+            self.edge1 = EdgeCentric(4, 6, 1, 2)  # Edge 1->8
+            self.node1 = NodeCentric(4, 6, 8, 10)  # Node 4->16
 
         self.edge2 = EdgeCentric(16, 32, 8, 16)  # Edge 8->48
         self.node2 = NodeCentric(16, 32, 48, 24)  # Node 16->56
@@ -61,11 +64,10 @@ class SGNN(nn.Module):
 
 class DIRAC(nn.Module):
 
-    def __init__(self, dim=(3, 3)):
+    def __init__(self, include_spin=False):
         super(DIRAC, self).__init__()
 
-        self.dim = dim
-        self.encoder = SGNN().to(device)
+        self.encoder = SGNN(include_spin=include_spin).to(device)
 
         self.fc1 = nn.Linear(12, 100)
         self.fc2 = nn.Linear(100, 25)
@@ -73,16 +75,12 @@ class DIRAC(nn.Module):
 
     def forward(self, batch):
         # output should have size [1, N] (Q-values)
-        if isinstance(batch, Batch):
-            batch = transform_batch_square(batch)
-        else:
-            batch = transform(batch, len(self.dim))
 
-        state_action_embedding = self.encoder(batch)
-        Q = state_action_embedding  # change matrix [N+1, 5] into vector
+        state_action_embedding = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
+        Q = state_action_embedding  # change matrix [N+1, 6] into vector
         Q = F.relu(self.fc1(Q))
         Q = F.relu(self.fc2(Q))
-        Q = F.relu(self.fc3(Q))
+        Q = F.leaky_relu(self.fc3(Q), negative_slope=0.05)
 
         return Q.reshape(-1)
 
