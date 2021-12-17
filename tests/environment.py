@@ -5,9 +5,9 @@ import networkx as nx
 from itertools import count
 from math import inf
 from src.utils import gauge_transformation_nx, compute_energy_nx
-from src.environment import RandomChimera
+from src.environment import RandomChimera, ComputeChimera
 from src.DIRAC import DIRAC
-from src.train import select_action
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -19,6 +19,7 @@ class TestEnvironment(unittest.TestCase):
         cls.env = RandomChimera((2, 2))
         cls.g = cls.env.chimera.copy()
         cls.transformed = gauge_transformation_nx(cls.g)
+        cls.val_env = ComputeChimera(cls.g)
         cls.policy_net = DIRAC().to(device)
 
     def test_gauge(self):
@@ -41,21 +42,20 @@ class TestEnvironment(unittest.TestCase):
                          [[1.0] for node in self.env.chimera.nodes])
         self.assertEqual(self.env.done_counter, 0)
 
-    def test_train(self):
-        for t in count():
-            # Select and perform an action
-            action = select_action(self.env)
-            next_state, reward, done, action_taken = self.env.step(action)
-            # Store the transition in memory
-            #memory.push(state, action, next_state, reward)
-
-            # Move to the next state
-            #state = next_state
-
-            # Perform one step of the optimization (on the policy network)
-            #optimize_model()
-            if done:  # it is done when model performs final spin flip
-                break
+    def test_validation(self):
+        for i in range(self.g.number_of_nodes()):
+            _, _, done, _ = self.val_env.step(i)
+            if i == self.g.number_of_nodes():
+                self.assertTrue(done)
+                self.assertEqual(list(nx.get_node_attributes(self.val_env.chimera, "spin").values()),
+                                 [[-1.0] for node in self.val_env.chimera.nodes])
+                self.assertEqual(self.val_env.available_actions, [])
+                self.assertEqual(self.val_env.mask, [-inf for node in self.val_env.chimera.nodes])
+        self.val_env.reset()
+        self.assertNotEqual(self.val_env.chimera, self.g)
+        self.assertEqual(list(nx.get_node_attributes(self.val_env.chimera, "spin").values()),
+                         [[1.0] for node in self.val_env.chimera.nodes])
+        self.assertEqual(self.val_env.done_counter, 0)
 
 
 if __name__ == '__main__':

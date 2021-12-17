@@ -267,11 +267,18 @@ def generate_chimera_from_csv(file, spin_conf="random"):
     set_node_attributes(g, spins, "spin")
 
     # create couplings and external magnetic field
+    # they must by shifted by 1
     edge_attr = {}
     external = {}
     for index, row in chimera_csv.iterrows():
         if row[0] == row[1]:
-            pass
+            external[row[0]-1] = [row[2]]
+        else:
+            edge_attr[(row[0]-1, row[1]-1)] = [row[2]]
+
+    set_edge_attributes(g, edge_attr, "coupling")
+    set_node_attributes(g, external, "external")
+
     return g
 
 

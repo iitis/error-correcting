@@ -146,3 +146,29 @@ class RandomChimera(gym.Env):
         return -2 * compute_energy_nx(g)  # "-2" because we want to to minimize energy
 
 
+class ComputeChimera(RandomChimera):
+    def __init__(self, graph, include_spin=False):
+        super(ComputeChimera, self).__init__((1,1))
+        self.graph = graph
+        self.include_spin = include_spin
+        self.chimera = gauge_transformation_nx(self.graph)  # transformed
+        self.state = nx_to_pytorch(self.chimera, include_spin=self.include_spin)
+        self.state.x = self.state.x.type(torch.float)
+        self.state.edge_attr = self.state.edge_attr.type(torch.float)
+
+        self.action_space = spaces.Discrete(self.chimera.number_of_nodes())
+        self.done_counter = 0
+        self.available_actions = list(range(self.chimera.number_of_nodes()))
+        self.mask = [1 for node in self.chimera.nodes]
+
+    def reset(self):
+        self.chimera = gauge_transformation_nx(self.graph)
+        self.done_counter = 0
+        self.available_actions = list(range(self.chimera.number_of_nodes()))
+        self.mask = [1 for node in self.chimera.nodes]
+        self.state = nx_to_pytorch(self.chimera, include_spin=self.include_spin)
+        self.state.x = self.state.x.type(torch.float)
+        self.state.edge_attr = self.state.edge_attr.type(torch.float)
+
+    def energy(self):
+        return compute_energy_nx(self.chimera)

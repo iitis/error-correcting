@@ -80,7 +80,7 @@ class DIRAC(nn.Module):
         Q = state_action_embedding  # change matrix [N+1, 6] into vector
         Q = F.relu(self.fc1(Q))
         Q = F.relu(self.fc2(Q))
-        Q = F.leaky_relu(self.fc3(Q), negative_slope=0.05)
+        Q = F.relu(self.fc3(Q))
 
         return Q.reshape(-1)
 

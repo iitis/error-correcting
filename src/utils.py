@@ -133,14 +133,14 @@ def nx_to_pytorch(graph, include_spin = False):
     return data
 
 
-def sum_rewards(trajectory, t, n):
+def sum_rewards(trajectory, t, n, gamma):
     s = 0
     for i in range(t, t+n+1):
-        s += trajectory[i][2]
+        s = trajectory[i][2] + gamma * s
     return s
 
 
-n_step_transition = namedtuple('Transition', ('state', 'action', 'reward_n', 'state_n'))
+n_step_transition = namedtuple('Transition', ('state', 'action', 'reward_n', 'state_n', 'expected'))
 
 
 class TransitionMemory(object):

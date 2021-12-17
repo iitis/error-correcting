@@ -63,12 +63,30 @@ class TestChimeraCSV(unittest.TestCase):
         chimera_path = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/chimera_512_002.csv"
         cls.g = generate_chimera_from_csv(chimera_path)
 
+
     def test_degrees(self):
         # degrees with self-loops
         max_degree = max(self.g.degree, key=lambda x: x[1])[1]
         min_degree = min(self.g.degree, key=lambda x: x[1])[1]
         self.assertTrue(max_degree == 6)
         self.assertTrue(min_degree == 5)
+
+    def test_attributes(self):
+        self.assertEqual(len(nx.get_node_attributes(self.g, "spin")), len(self.g.nodes))
+        self.assertEqual(len(nx.get_node_attributes(self.g, "external")), len(self.g.nodes))
+        self.assertEqual(len(nx.get_edge_attributes(self.g, "coupling")), len(self.g.edges))
+
+    def test_pytorch(self):
+        data = nx_to_pytorch(self.g)
+
+        self.assertEqual(self.g.number_of_nodes(), data.num_nodes)
+        self.assertEqual(self.g.size(), data.num_edges/2)
+
+        self.assertIsNotNone(data.x)
+        self.assertIsNotNone(data.edge_attr)
+
+        self.assertEqual(list(data.x.shape), [data.num_nodes, 4])
+        self.assertEqual(list(data.edge_attr.shape), [data.num_edges, 1])
 
 
 if __name__ == '__main__':

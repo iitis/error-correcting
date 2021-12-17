@@ -3,130 +3,87 @@ Extremely ugly now. I will make it pretty later
 """
 
 import torch
-import math
+import pickle
+import matplotlib.pyplot as plt
+import numpy as np
 from tqdm import tqdm
-from DIRAC import DIRAC
-from environment import IsingGraph2dRandom, IsingGraph2d
-from utils import compute_energy
+from math import inf
 import pandas as pd
 from itertools import count
+from src.data_gen import generate_chimera_from_csv
+from src.DIRAC import DIRAC
+from src.environment import ComputeChimera
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
-PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/model_big.pt"
-VAL_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/graph_reward_track.pt"
-SAVE = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/random_15_100"
-
-policy_net = DIRAC().to(device)
-checkpoint = torch.load(PATH)
-policy_net.load_state_dict(checkpoint['model_state_dict'])
-
-csv_file = "/home/tsmierzchalski/pycharm_projects/error-correcting/test_15_100.csv"
-
-df = pd.DataFrame(columns=['lowest_energy', 'e0', 'energy_path'])
-graph_dict = {}
+PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/models/model_C2_no_spin.pt"
+CHECKPOINT_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/models/model_checkpoint.pt"
+VAL_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/chimera_512.pkl"
 
 
+def select_action_policy(environment):
 
-def select_action_trained(state, env):
+    global q_values_global
+    state = environment.state.to(device)
 
-    mask = torch.tensor(env.actions_taken, device=device)
-    q_values = policy_net(state)
-    q_values = torch.add(q_values, 0.001)  # to avoid 0 * -inf
-    action = mask * q_values
-    return action.argmax().item()
+    with torch.no_grad():
+        # Here choice really depends on INCLUDE_SPIN, if True then q_values_global is None
+        if q_values_global is None:
+            q_values = policy_net(state)
 
-
-def solve_trained(data):
-
-    env_local = IsingGraph2d(data)
-    energy_path = []
-    lowest_energy = math.inf
-    state = env_local.data
-    for t in count():
-        # Select and perform an action
-        action = select_action_trained(state, env_local)
-        next_state, _, done, _ = env_local.step(action)
-
-        # compute energy
-        new_energy = compute_energy(state)
-        energy_path.append(new_energy)
-        if new_energy < lowest_energy:
-            lowest_energy = new_energy
-
-        # Move to the next state
-        state = next_state
-
-        if done:  # it is done when model performs final spin flip
-            break
-
-    return lowest_energy, energy_path
+            mask = torch.tensor(environment.mask, device=device)  # used to mask available actions
+            q_values = torch.add(q_values, 1E-8)  # to avoid 0 * -inf
+            action = mask * q_values
+            return action.argmax().item()
+        else:
+            mask = torch.tensor(environment.mask, device=device)  # used to mask available actions
+            q_values_global = torch.add(q_values_global, 1E-8)  # to avoid 0 * -inf
+            action = mask * q_values_global
+            return action.argmax().item()
 
 
-if __name__ == '__main__':
-    env = IsingGraph2dRandom((15, 15))
-    for i in tqdm(range(100)):
 
-        # Initialize the environment and state
-        env.reset()
-        starting_state = env.data
-        graph_dict["{}".format(i)] = env.data
-        #compute energy and energy_path
-        lowest_energy, energy_path = solve_trained(starting_state)
-        e0 = lowest_energy/env.data.num_nodes
-        df = df.append({'lowest_energy': lowest_energy, "e0": e0, "energy_path": energy_path},
-                       ignore_index=True)
+if __name__ == "__main__":
+    model = policy_net = DIRAC(include_spin=False).to(device)
+    model.load_state_dict(torch.load(PATH)["model_state_dict"])
+    model.eval()
 
-        #it will be overwritten for every iteration
-        df.to_csv(csv_file)
-        torch.save(graph_dict, SAVE)
+    with open(VAL_PATH, 'rb') as f:
+        dataset = pickle.load(f)
 
+    for choice in range(1, 11):  # expected time 2m30s for 10 chimeras_512
 
-    """
-    for i in tqdm(range(20)):
+        energy_path = []
+        val_set = dataset["{}".format(choice)]
+        val_env = ComputeChimera(val_set, include_spin=False)
+        min_eng = inf
+        q_values_global = policy_net(val_env.state.to(device))
 
-        # Initialize the environment and state
-        env.reset()
-        starting_state = env.data
-        energy = math.inf
-
-        new_energy = solve_trained(starting_state)
-        
-
-        energy_list = []
-        # Initialize the environment and state
-        env.reset()
-        state = env.data
-        energy = math.inf
-        data["{}".format(i)] = state
-        for t in count():
+        for t in tqdm(count()):
             # Select and perform an action
-
-            action = select_action_trained(env, state)
-            next_state, reward, done, action_taken = env.step(action)
-
-            # Remove action taken from available actions
-
-            available_actions.remove(action_taken)
-
-            # add data to csv
-            new_energy = compute_energy(state)
-            energy_list.append(new_energy)
-
-            if new_energy < energy:
-                energy = new_energy
-
-            # Move to the next state
-            state = next_state
-
-            # Perform one step of the optimization (on the policy network)
-
+            action = select_action_policy(val_env)
+            _, _, done, _ = val_env.step(action)
+            energy = val_env.energy()
+            energy_path.append(energy)
+            if energy < min_eng:
+                min_eng = energy
             if done:  # it is done when model performs final spin flip
                 break
-        df["{}".format(i)] = energy_list
+        x = np.arange(val_env.chimera.number_of_nodes())
+        min_eng = [min_eng for _ in range(val_env.chimera.number_of_nodes())]
+        plt.plot(x, energy_path, x, min_eng)
+        plt.show()
 
-    df.to_csv(csv_file, sep=',',)
-    torch.save(data, SAVE)
+    """
+    dataset = {}
+    for i in range(1, 10):
+        graph = generate_chimera_from_csv("/home/tsmierzchalski/pycharm_projects/error-correcting/datasets"
+                                          "/chimera_512_00{}.csv".format(i))
+        dataset["{}".format(i)] = graph
+    dataset["10"] = generate_chimera_from_csv("/home/tsmierzchalski/pycharm_projects/error-correcting/datasets"
+                                              "/chimera_512_010.csv")
 
-"""
+    with open('/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/chimera_512.pkl', 'wb') as f:
+        pickle.dump(dataset, f)
+    """
