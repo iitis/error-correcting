@@ -96,9 +96,9 @@ def gauge_transformation_nx(nx_graph):
     graph = nx_graph.copy()  # to avoid making changes in original graph
     t_list = list(nx.get_node_attributes(graph, "spin").values())
     for i in range(graph.number_of_nodes()):
-        graph.nodes[i]["spin"] = [t_list[i][0] ** 2]
+        graph.nodes[i]["spin"] = t_list[i] ** 2
     for i, j, data in graph.edges.data():
-        data["coupling"] = [t_list[i][0] * t_list[j][0] * data["coupling"][0]]
+        data["coupling"] = t_list[i] * t_list[j] * data["coupling"]
 
     t_node = {node: t_list[node] for node in graph.nodes}
     nx.set_node_attributes(graph, t_node, "t")
@@ -133,13 +133,6 @@ def nx_to_pytorch(graph, include_spin = False):
     return data
 
 
-def sum_rewards(trajectory, t, n, gamma):
-    s = 0
-    for i in range(t, t+n+1):
-        s = trajectory[i][2] + gamma * s
-    return s
-
-
 n_step_transition = namedtuple('Transition', ('state', 'action', 'reward_n', 'state_n', 'expected'))
 
 
@@ -154,6 +147,9 @@ class TransitionMemory(object):
 
     def sample(self, batch_size):
         return rn.sample(self.memory, batch_size)
+
+    def pop_left(self):
+        self.memory.popleft()
 
     def __len__(self):
         return len(self.memory)

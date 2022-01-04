@@ -2,6 +2,7 @@ import torch
 import random as rn
 import networkx as nx
 import pandas as pd
+import numpy as np
 
 from torch_geometric.utils import from_networkx, to_undirected
 from networkx.generators.lattice import grid_graph
@@ -181,7 +182,7 @@ def generate_chimera(dim, distribution="gauss", params=None, spin_conf="random")
             if j > m:
                 i += 1
                 j = 1
-        pos = [i, j]
+        pos = np.array([i, j])
         position[node] = pos
         c += 1
     set_node_attributes(g, position, "position")
@@ -190,24 +191,24 @@ def generate_chimera(dim, distribution="gauss", params=None, spin_conf="random")
     if distribution == "gauss":
         if params is None:
             params = [0, 1]
-        edge_attr = {edge: [rn.gauss(params[0], params[1])] for edge in g.edges}
-        external = {node: [rn.gauss(params[0], params[1])] for node in g.nodes}
+        edge_attr = {edge: rn.gauss(params[0], params[1]) for edge in g.edges}
+        external = {node: rn.gauss(params[0], params[1]) for node in g.nodes}
     if distribution == "uniform":
         if params is None:
             params = [-2, 2]
-        edge_attr = {edge: [rn.uniform(params[0], params[1])] for edge in g.edges}
-        external = {node: [rn.uniform(params[0], params[1])] for node in g.nodes}
+        edge_attr = {edge: rn.uniform(params[0], params[1]) for edge in g.edges}
+        external = {node: rn.uniform(params[0], params[1]) for node in g.nodes}
 
     set_edge_attributes(g, edge_attr, "coupling")
     set_node_attributes(g, external, "external")
 
     # create spin conf
     if spin_conf == "random":
-        spins = {node: rn.choice([[-1.0], [1.0]]) for node in g.nodes}
+        spins = {node: rn.choice([-1.0, 1.0]) for node in g.nodes}
     if spin_conf == "all_up":
-        x = {node: [1.0] for node in g.nodes}
+        x = {node: 1.0 for node in g.nodes}
     elif spin_conf == "all_down":
-        x = {node: [-1.0] for node in g.nodes}
+        x = {node: -1.0 for node in g.nodes}
 
     set_node_attributes(g, spins, "spin")
 
@@ -251,18 +252,18 @@ def generate_chimera_from_csv(file, spin_conf="random"):
             if j > m:
                 i += 1
                 j = 1
-        pos = [i, j]
+        pos = np.array([i, j])
         position[node] = pos
         c += 1
     set_node_attributes(g, position, "position")
 
     # create spin conf
     if spin_conf == "random":
-        spins = {node: rn.choice([[-1.0], [1.0]]) for node in g.nodes}
+        spins = {node: rn.choice([-1.0, 1.0]) for node in g.nodes}
     if spin_conf == "all_up":
-        x = {node: [1.0] for node in g.nodes}
+        x = {node: 1.0 for node in g.nodes}
     elif spin_conf == "all_down":
-        x = {node: [-1.0] for node in g.nodes}
+        x = {node: -1.0 for node in g.nodes}
 
     set_node_attributes(g, spins, "spin")
 
@@ -272,13 +273,14 @@ def generate_chimera_from_csv(file, spin_conf="random"):
     external = {}
     for index, row in chimera_csv.iterrows():
         if row[0] == row[1]:
-            external[row[0]-1] = [row[2]]
+            external[row[0]-1] = row[2]
         else:
-            edge_attr[(row[0]-1, row[1]-1)] = [row[2]]
+            edge_attr[(row[0]-1, row[1]-1)] = row[2]
 
     set_edge_attributes(g, edge_attr, "coupling")
     set_node_attributes(g, external, "external")
 
     return g
 
-
+def generate_solved_chimera_from_csv(file):
+    pass

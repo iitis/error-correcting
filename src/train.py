@@ -9,11 +9,12 @@ import torch.optim as optim
 import torch.nn as nn
 
 from src.environment import RandomChimera, ComputeChimera
-from src.utils import nx_to_pytorch, TransitionMemory, sum_rewards, n_step_transition
+from src.utils import nx_to_pytorch, TransitionMemory, n_step_transition
 from src.DIRAC import DIRAC
 from itertools import count
 from tqdm import tqdm
 from torch_geometric.data import Batch
+from torch_geometric.nn import DataParallel
 from statistics import mean
 from math import inf
 from collections import deque
@@ -24,41 +25,58 @@ world_size = torch.cuda.device_count()
 print('Let\'s use', world_size, 'GPUs!')
 
 # Global constants
-PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/models/model_C2_no_spin.pt"
+PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/models/model_C2_C4_v2.pt"
 CHECKPOINT_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/models/model_checkpoint.pt"
 VAL_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/chimera_512.pkl"
 DATA_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/random_C2_trajectory1.pkl"
+BEST_VALUES_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/chimera_512_checkpoint.pkl"
 
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 GAMMA = 0.999
 EPS_START = 1.0
 EPS_END = 0.05
-EPS_DECAY = 225
-NUM_EPISODES = 1200
+EPS_DECAY = 3500
+NUM_EPISODES = 20000
 TARGET_UPDATE = 10
-N = 10
-CHECKPOINT = False
-INCLUDE_SPIN = False
+N = 30
+CHECKPOINT = True
+INCLUDE_SPIN = True
 
 # Models and optimizer
-policy_net = DIRAC(include_spin=INCLUDE_SPIN).to(device)
-target_net = DIRAC(include_spin=INCLUDE_SPIN).to(device)
+policy_net = DIRAC(include_spin=INCLUDE_SPIN)
+target_net = DIRAC(include_spin=INCLUDE_SPIN)
+#policy_net = DataParallel(policy_net)
+#target_net = DataParallel(target_net)
+policy_net = policy_net.to(device)
+target_net = target_net.to(device)
 target_net.load_state_dict(policy_net.state_dict())
 target_net.eval()
 optimizer = optim.RMSprop(policy_net.parameters())
 
 if CHECKPOINT:
-    checkpoint = torch.load(PATH)
+    print("Loading checkpoint")
+    checkpoint = torch.load(CHECKPOINT_PATH)
     policy_net.load_state_dict(checkpoint['model_state_dict'])
     target_net.load_state_dict(checkpoint['model_state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+    episode_checkpoint = checkpoint["episode"]
+
+    with open(BEST_VALUES_PATH, 'rb') as f:
+        val_dataset = pickle.load(f)
 
 # Global variables
 env = RandomChimera((2, 2), include_spin=INCLUDE_SPIN)
 steps_done = 0
 validation_score = inf
-memory = TransitionMemory(100000)  # n-step transition
+memory = TransitionMemory(80000)  # n-step transition
 q_values_global = None
+
+if not CHECKPOINT:
+    with open(VAL_PATH, 'rb') as f:
+        val_dataset = pickle.load(f)
+
+    episode_checkpoint = -1
 
 # maybe use n-step transition?
 
@@ -102,34 +120,36 @@ def select_action_policy(environment):
 
 def validate():
     global q_values_global
+    global val_dataset
 
-    with open(VAL_PATH, 'rb') as f:
-        dataset = pickle.load(f)
+    choice = rn.randint(1, 10)
+    improve = False
+    val_set = val_dataset["{}".format(choice)]
+    val_env = ComputeChimera(val_set, include_spin=INCLUDE_SPIN)
+    min_eng = inf
 
-    energy_mean = []
-    for choice in range(1, 11):  # expected time 2m30s for 10 chimeras_512
+    if INCLUDE_SPIN:
+        q_values_global = None
+    else:
+        with torch.no_grad():
+            q_values_global = policy_net(val_env.state.to(device))
 
-        val_set = dataset["{}".format(choice)]
-        val_env = ComputeChimera(val_set, include_spin=INCLUDE_SPIN)
-        min_eng = inf
+    for t in count():
+        # Select and perform an action
+        action = select_action_policy(val_env)
+        _, _, done, _ = val_env.step(action)
+        energy = val_env.energy()
+        if energy < min_eng:
+            min_eng = energy
+            # update best instance
+            spins = nx.get_node_attributes(val_env.chimera, "spin")
+            nx.set_node_attributes(val_set, spins, "spin")
+            val_dataset["{}".format(choice)] = val_set
+            improve = True
+        if done:  # it is done when model performs final spin flip
+            break
 
-        if INCLUDE_SPIN:
-            q_values_global = None
-        else:
-            with torch.no_grad():
-                q_values_global = policy_net(val_env.state.to(device))
-
-        for t in count():
-            # Select and perform an action
-            action = select_action_policy(val_env)
-            _, _, done, _ = val_env.step(action)
-            energy = val_env.energy()
-            if energy < min_eng:
-                min_eng = energy
-            if done:  # it is done when model performs final spin flip
-                break
-        energy_mean.append(min_eng)
-    return mean(energy_mean)
+    return improve
 
 
 def optimize_model():
@@ -153,7 +173,7 @@ def optimize_model():
     state_action_values = policy_net(state_batch).gather(0, action_batch)
 
     # Compute Huber loss
-    criterion = nn.SmoothL1Loss()
+    criterion = nn.MSELoss()
     loss = criterion(reward_batch + expected_state_action_values, state_action_values)
 
     # Optimize the model
@@ -168,9 +188,13 @@ if __name__ == "__main__":
 
     for episode in tqdm(range(NUM_EPISODES), leave=None, desc="episodes"):
 
+        if episode < episode_checkpoint:
+            continue
+
         # Initialize the environment and state
         env.reset()
         trajectory = deque([], maxlen=10000)
+        validation = False
 
         # Initialize if we include spin or not
         if INCLUDE_SPIN:
@@ -210,18 +234,19 @@ if __name__ == "__main__":
 
         if episode % TARGET_UPDATE == 0:
             target_net.load_state_dict(policy_net.state_dict())
-            validation_score_new = validate()
+            validation = validate()
 
-            if validation_score_new < validation_score:
-                validation_score = validation_score_new
+
+            if validation:
                 torch.save({
                     'episode': episode,
-                    'validation_score': validation_score,
                     'model_state_dict': policy_net.state_dict()}, PATH)
+
 
         torch.save({
             'episode': episode,
             'model_state_dict': policy_net.state_dict(),
             'optimizer_state_dict': optimizer.state_dict()}, CHECKPOINT_PATH)
 
-
+        with open(BEST_VALUES_PATH, 'wb') as f:
+            pickle.dump(val_dataset, f)

@@ -23,7 +23,6 @@ class TestEnvironment(unittest.TestCase):
         cls.policy_net = DIRAC().to(device)
 
     def test_gauge(self):
-        pass
         self.assertEqual(compute_energy_nx(self.g), compute_energy_nx(self.transformed))
 
     def test_environment(self):
@@ -33,13 +32,11 @@ class TestEnvironment(unittest.TestCase):
             if i == self.g.number_of_nodes():
                 self.assertTrue(done)
                 self.assertEqual(list(nx.get_node_attributes(self.env.chimera, "spin").values()),
-                                 [[-1.0] for node in self.env.chimera.nodes])
+                                 [-1.0 for node in self.env.chimera.nodes])
                 self.assertEqual(self.env.available_actions, [])
                 self.assertEqual(self.env.mask, [-inf for node in self.env.chimera.nodes])
         self.env.reset()
         self.assertNotEqual(self.env.chimera, self.g)
-        self.assertEqual(list(nx.get_node_attributes(self.env.chimera, "spin").values()),
-                         [[1.0] for node in self.env.chimera.nodes])
         self.assertEqual(self.env.done_counter, 0)
 
     def test_validation(self):
@@ -48,13 +45,11 @@ class TestEnvironment(unittest.TestCase):
             if i == self.g.number_of_nodes():
                 self.assertTrue(done)
                 self.assertEqual(list(nx.get_node_attributes(self.val_env.chimera, "spin").values()),
-                                 [[-1.0] for node in self.val_env.chimera.nodes])
+                                 [-1.0 for node in self.val_env.chimera.nodes])
                 self.assertEqual(self.val_env.available_actions, [])
                 self.assertEqual(self.val_env.mask, [-inf for node in self.val_env.chimera.nodes])
         self.val_env.reset()
         self.assertNotEqual(self.val_env.chimera, self.g)
-        self.assertEqual(list(nx.get_node_attributes(self.val_env.chimera, "spin").values()),
-                         [[1.0] for node in self.val_env.chimera.nodes])
         self.assertEqual(self.val_env.done_counter, 0)
 
 

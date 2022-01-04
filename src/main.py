@@ -1,7 +1,7 @@
 """
 Extremely ugly now. I will make it pretty later
 """
-
+import networkx as nx
 import torch
 import pickle
 import matplotlib.pyplot as plt
@@ -17,10 +17,11 @@ from src.environment import ComputeChimera
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
-PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/models/model_C2_no_spin.pt"
+PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/models/model_C2_C4_v2.pt"
 CHECKPOINT_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/models/model_checkpoint.pt"
 VAL_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/chimera_512.pkl"
 
+BEST_VALUES_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/chimera_512_checkpoint.pkl"
 
 def select_action_policy(environment):
 
@@ -45,35 +46,41 @@ def select_action_policy(environment):
 
 
 if __name__ == "__main__":
-    model = policy_net = DIRAC(include_spin=False).to(device)
+    model = policy_net = DIRAC(include_spin=True).to(device)
     model.load_state_dict(torch.load(PATH)["model_state_dict"])
     model.eval()
 
-    with open(VAL_PATH, 'rb') as f:
+    with open(BEST_VALUES_PATH, 'rb') as f:
         dataset = pickle.load(f)
 
-    for choice in range(1, 11):  # expected time 2m30s for 10 chimeras_512
+    for choice in range(1,2):  # expected time 2m30s for 10 chimeras_512
 
-        energy_path = []
-        val_set = dataset["{}".format(choice)]
-        val_env = ComputeChimera(val_set, include_spin=False)
-        min_eng = inf
+        best_graph = dataset["{}".format(choice)]
+        val_env = ComputeChimera(best_graph, include_spin=True)
         q_values_global = policy_net(val_env.state.to(device))
-
-        for t in tqdm(count()):
-            # Select and perform an action
-            action = select_action_policy(val_env)
-            _, _, done, _ = val_env.step(action)
-            energy = val_env.energy()
-            energy_path.append(energy)
-            if energy < min_eng:
-                min_eng = energy
-            if done:  # it is done when model performs final spin flip
-                break
-        x = np.arange(val_env.chimera.number_of_nodes())
-        min_eng = [min_eng for _ in range(val_env.chimera.number_of_nodes())]
-        plt.plot(x, energy_path, x, min_eng)
-        plt.show()
+        for i in range(10):
+            min_eng = inf
+            val_env = ComputeChimera(best_graph, include_spin=True)
+            #val_env.reset()
+            energy_path = []
+            for t in tqdm(count()):
+                # Select and perform an action
+                action = select_action_policy(val_env)
+                _, _, done, _ = val_env.step(action)
+                energy = val_env.energy()
+                energy_path.append(energy)
+                if energy < min_eng:
+                    min_eng = energy
+                    best_graph = val_env.chimera
+                if done:  # it is done when model performs final spin flip
+                    break
+            x = np.arange(val_env.chimera.number_of_nodes())
+            min_eng = [min_eng for _ in range(val_env.chimera.number_of_nodes())]
+            plt.plot(x, energy_path, x, min_eng)
+            plt.xlabel("steps")
+            plt.ylabel("energy")
+            plt.title('instance {}'.format(choice))
+            plt.show()
 
     """
     dataset = {}

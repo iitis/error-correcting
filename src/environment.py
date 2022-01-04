@@ -1,4 +1,6 @@
 import gym
+import random as rn
+import networkx as nx
 from math import inf
 from matplotlib.pyplot import close
 
@@ -98,7 +100,7 @@ class RandomChimera(gym.Env):
 
         self.dim = dim
         self.include_spin = include_spin
-        self.chimera = gauge_transformation_nx(generate_chimera(self.dim))  # transformed
+        self.chimera = generate_chimera(self.dim)  # transformed
         self.state = nx_to_pytorch(self.chimera, include_spin=self.include_spin)
 
         self.action_space = spaces.Discrete(self.chimera.number_of_nodes())
@@ -112,10 +114,13 @@ class RandomChimera(gym.Env):
 
         done = False
         info = action
+        old_state = self.chimera.copy()
         self.chimera = self.flip_spin(action)  # here we change state of environment
         self.done_counter += 1
         self.state = nx_to_pytorch(self.chimera, include_spin=self.include_spin)
-        reward = self.compute_reward(self.chimera, action)
+        self.state.x = self.state.x.type(torch.float)
+        self.state.edge_attr = self.state.edge_attr.type(torch.float)
+        reward = self.compute_reward(old_state, self.chimera, action)
 
         if self.done_counter == self.chimera.number_of_nodes():
             done = True
@@ -124,9 +129,11 @@ class RandomChimera(gym.Env):
         self.mask[action] = -inf
         return self.state, reward, done, info
 
-    def reset(self):
+    def reset(self, random_dim=False):
         # new instance
-        self.chimera = gauge_transformation_nx(generate_chimera(self.dim))  # transformed
+        rdim = rn.randint(2, 4)
+        self.dim = (rdim, rdim) if random_dim else self.dim
+        self.chimera = generate_chimera(self.dim) # transformed
         self.done_counter = 0
         self.available_actions = list(range(self.chimera.number_of_nodes()))
         self.mask = [1 for node in self.chimera.nodes]
@@ -134,16 +141,21 @@ class RandomChimera(gym.Env):
 
     def flip_spin(self, action):
         graph = self.chimera
-        graph.nodes[action]["spin"] = [-1]
+        graph.nodes[action]["spin"][0] *= -1
         return graph
 
-    def compute_reward(self, nx_graph, action: int):
-
-        delta_i = list(nx_graph.neighbors(action))
+    def compute_reward(self, old_graph,  new_graph, action: int):
+        # Get neighbourhood. They are identical in both graphs
+        delta_i = list(new_graph.neighbors(action))
         delta_i.append(action)  # to include node itself
-        g = nx_graph.subgraph(delta_i)
 
-        return -2 * compute_energy_nx(g)  # "-2" because we want to to minimize energy
+        g_old = old_graph.subgraph(delta_i)
+        g_new = new_graph.subgraph(delta_i)
+
+        diff = compute_energy_nx(g_new) - compute_energy_nx(g_old)
+        reward = abs(diff) if diff <= 0 else -1*abs(diff)
+
+        return reward
 
 
 class ComputeChimera(RandomChimera):
@@ -151,7 +163,7 @@ class ComputeChimera(RandomChimera):
         super(ComputeChimera, self).__init__((1,1))
         self.graph = graph
         self.include_spin = include_spin
-        self.chimera = gauge_transformation_nx(self.graph)  # transformed
+        self.chimera = self.graph  # transformed
         self.state = nx_to_pytorch(self.chimera, include_spin=self.include_spin)
         self.state.x = self.state.x.type(torch.float)
         self.state.edge_attr = self.state.edge_attr.type(torch.float)
@@ -162,7 +174,8 @@ class ComputeChimera(RandomChimera):
         self.mask = [1 for node in self.chimera.nodes]
 
     def reset(self):
-        self.chimera = gauge_transformation_nx(self.graph)
+        #self.gauge_randomisation()
+        #self.chimera = gauge_transformation_nx(self.graph)
         self.done_counter = 0
         self.available_actions = list(range(self.chimera.number_of_nodes()))
         self.mask = [1 for node in self.chimera.nodes]
@@ -172,3 +185,11 @@ class ComputeChimera(RandomChimera):
 
     def energy(self):
         return compute_energy_nx(self.chimera)
+
+    def gauge_randomisation(self):
+        spins = {node: rn.choice([[-1.0], [1.0]]) for node in self.graph.nodes}
+        nx.set_node_attributes(self.graph, spins, "spin")
+
+    def set_new_spins(self, spins):
+        nx.set_node_attributes(self.graph, spins, "spin")
+
