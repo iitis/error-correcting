@@ -7,16 +7,89 @@ import matplotlib.pyplot as plt
 import math
 import numpy as np
 import pandas as pd
+import itertools
 
-def correction(x):
-    return x+75
+from src.data_gen import generate_chimera_from_csv
 
-chimera2048_path = "/home/tsmierzchalski/pycharm_projects/error-correcting/chimera2048.csv"
-ground_path = "/home/tsmierzchalski/pycharm_projects/error-correcting/groundstates_otn2d.csv"
-no_errors_path = "/home/tsmierzchalski/pycharm_projects/error-correcting/chimera2048_no_errors.csv"
-errors_path = "/home/tsmierzchalski/pycharm_projects/error-correcting/errors.csv"
-correct_path = "/home/tsmierzchalski/pycharm_projects/error-correcting/chimera2048_approx_correct.csv"
+PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/chimera_512_001.txt"
 
+chimera = pd.read_csv(PATH)
+print(chimera)
+
+
+
+
+
+
+"""
+EPS_START = 1.0
+EPS_END = 0.05
+EPS_DECAY = 3500
+NUM_EPISODES = 20000
+
+def func(x):
+    return EPS_END + (EPS_START - EPS_END) * np.exp(-1. * x / EPS_DECAY)
+
+x = np.arange(NUM_EPISODES)
+
+plt.plot(x, func(x))
+plt.show()
+"""
+
+"""
+chimera_2048_1_path = "/home/tsmierzchalski/pycharm_projects/error-correcting/csv/chimera2048.csv"
+chimera_2048_2_path = "/home/tsmierzchalski/pycharm_projects/error-correcting/csv/chimera2048-2.csv"
+ground_path = "/home/tsmierzchalski/pycharm_projects/error-correcting/csv/groundstates_otn2d.txt"
+
+chimera_2048_1 = pd.read_csv(chimera_2048_1_path, delimiter=";")
+chimera_2048_2 = pd.read_csv(chimera_2048_2_path, delimiter=";")
+
+def cor(x):
+    return x+1
+
+chimera_2048_2["i"] = chimera_2048_2["i"].apply(cor)
+
+chimera_2048 = pd.concat([chimera_2048_1, chimera_2048_2], ignore_index=True)
+
+
+chimera_2048["energies"] = chimera_2048["energies"].round(3)
+ground = pd.read_csv(ground_path, delimiter=" ", header=None)
+ground = ground[2]
+energies = ground.iloc[chimera_2048["i"]-1]
+energies = energies.reset_index()
+energies = energies[2]
+energies = energies.round(3)
+energies = energies.to_frame(name="value")
+
+chimera_2048['correct'] = np.where(chimera_2048['energies'] == energies["value"], True, False)
+
+print(chimera_2048.loc[chimera_2048["correct"]==True])
+bond = chimera_2048.groupby("bd")
+
+for x in [16,24,32,64]:
+
+
+    bond16 = bond.get_group(x)
+
+    bond16_str = bond16.groupby("Strategy")
+    for y in ["SVDTruncate", "MPSAnnealing"]:
+        bond16_str_SVD = bond16_str.get_group(y)
+
+        bond16_str_SVD_gauges = bond16_str_SVD.groupby("Layout")
+
+        bond16_str_SVD_eg = bond16_str_SVD_gauges.get_group("EnergyGauges")
+        bond16_str_SVD_ge = bond16_str_SVD_gauges.get_group("GaugesEnergy")
+        bond16_str_SVD_ege = bond16_str_SVD_gauges.get_group("EngGaugesEng")
+
+        bond16_str_SVD_eg.to_csv("/home/tsmierzchalski/pycharm_projects/error-correcting/csv/2048bond{}_{}_eg.csv".format(x, y))
+        bond16_str_SVD_ge.to_csv("/home/tsmierzchalski/pycharm_projects/error-correcting/csv/2048bond{}_{}_A_ge.csv".format(x, y))
+        bond16_str_SVD_ege.to_csv("/home/tsmierzchalski/pycharm_projects/error-correcting/csv/2048bond{}_{}_A_ege.csv".format(x, y))
+
+
+
+
+"""
+"""
 chimera2048_no_errors = pd.read_csv(no_errors_path, delimiter=",", index_col=0)
 chimera_correct = pd.read_csv(correct_path, delimiter=",", index_col=0)
 gauges_energy = chimera_correct.loc[chimera2048_no_errors["Layout"] == "GaugesEnergy"]
@@ -44,6 +117,7 @@ plt.ylabel('Probability (as fraction)')
 plt.title("Probability of finding ground state")
 plt.legend()
 plt.savefig('/home/tsmierzchalski/pycharm_projects/error-correcting/probability.png')
+"""
 """
 
   # Plot some data on the (implicit) axes.
