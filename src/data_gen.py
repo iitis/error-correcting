@@ -1,4 +1,5 @@
 import torch
+import pickle
 import random as rn
 import networkx as nx
 import pandas as pd
@@ -182,7 +183,7 @@ def generate_chimera(dim, distribution="gauss", params=None, spin_conf="random")
             if j > m:
                 i += 1
                 j = 1
-        pos = np.array([i, j])
+        pos = [i, j]
         position[node] = pos
         c += 1
     set_node_attributes(g, position, "position")
@@ -252,7 +253,7 @@ def generate_chimera_from_csv(file, spin_conf="random"):
             if j > m:
                 i += 1
                 j = 1
-        pos = np.array([i, j])
+        pos = [i, j]
         position[node] = pos
         c += 1
     set_node_attributes(g, position, "position")
@@ -282,5 +283,75 @@ def generate_chimera_from_csv(file, spin_conf="random"):
 
     return g
 
-def generate_solved_chimera_from_csv(file):
-    pass
+
+def create_solution_dict(file, save):
+
+    ground = pd.read_csv(file, delimiter=" ", header=None)
+    ground.drop(1, inplace=True, axis=1)
+
+    solution_dict = {}
+    for index, row in ground.iterrows():
+        spins = {i-3: 1 if row[i] == 1 else -1 for i in range(3, len(row)+3)}
+        sol = {"ground": row[2], "spins": spins}
+        solution_dict["{}".format(index + 1)] = sol
+
+    with open(save, 'wb') as f:
+        pickle.dump(solution_dict, f)
+
+def generate_solved_chimera_from_csv(chimera, solution_dict, number):
+
+    chimera_csv = pd.read_csv(chimera, index_col=0)
+    num_of_nodes = chimera_csv["0"].max()
+    num_of_cells = num_of_nodes/8
+    dim = num_of_cells ** (1/2)
+    n = int(dim)
+    m = int(dim)
+
+    list_of_graphs = [nx.complete_bipartite_graph(4, 4) for x in range(int(num_of_cells))]
+    g = disjoint_union_all(list_of_graphs)
+
+    # I have found these formulas by hand, k is in range four because we have 4x4 complete bipartite graph
+    horizontal_edges = [(8 * row * m + 8 * column + 4 + k, 8 * row * m + 8 * column + 12 + k) for row in range(n)
+                        for column in range(m - 1) for k in range(4)]
+
+    vertical_edges = [(8 * row * m + 8 * column + k, 8 * row * m + 8 * column + 8 * m + k) for row in range(n - 1)
+                      for column in range(m) for k in range(4)]
+
+    g.add_edges_from(horizontal_edges)
+    g.add_edges_from(vertical_edges)
+
+    # create position attribute
+    i, j, c = 1.0, 1.0, 0.0
+    position = {}
+    for node in g.nodes:
+
+        if c % 8 == 0 and c > 0:
+            j += 1
+            if j > m:
+                i += 1
+                j = 1
+        pos = [i, j]
+        position[node] = pos
+        c += 1
+    set_node_attributes(g, position, "position")
+
+    # read spin conf
+
+    spins = solution_dict["{}".format(number)]["spins"]
+
+    set_node_attributes(g, spins, "spin")
+
+    # create couplings and external magnetic field
+    # they must by shifted by 1
+    edge_attr = {}
+    external = {}
+    for index, row in chimera_csv.iterrows():
+        if row[0] == row[1]:
+            external[row[0]-1] = row[2]
+        else:
+            edge_attr[(row[0]-1, row[1]-1)] = row[2]
+
+    set_edge_attributes(g, edge_attr, "coupling")
+    set_node_attributes(g, external, "external")
+
+    return g

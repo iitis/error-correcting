@@ -173,7 +173,7 @@ class ComputeChimera(RandomChimera):
         self.available_actions = list(range(self.chimera.number_of_nodes()))
         self.mask = [1 for node in self.chimera.nodes]
 
-    def reset(self):
+    def reset(self, random_dim=False):
         #self.gauge_randomisation()
         #self.chimera = gauge_transformation_nx(self.graph)
         self.done_counter = 0
@@ -188,7 +188,7 @@ class ComputeChimera(RandomChimera):
 
     def gauge_randomisation(self):
         spins = {node: rn.choice([[-1.0], [1.0]]) for node in self.graph.nodes}
-        nx.set_node_attributes(self.graph, spins, "spin")
+        nx.set_node_attributes(self.chimera, spins, "spin")
 
     def set_new_spins(self, spins):
         nx.set_node_attributes(self.graph, spins, "spin")

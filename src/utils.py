@@ -114,9 +114,9 @@ def compute_energy_nx(nx_graph):
 
     s = 0
     for i, j, data in graph.edges(data=True):
-        s -= data["coupling"][0] * spins[i][0] * spins[j][0]
+        s += data["coupling"] * spins[i] * spins[j]
     for i in spins.keys():
-        s -= spins[i][0] * external[i][0]
+        s += spins[i] * external[i]
     return s
 
 
