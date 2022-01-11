@@ -138,10 +138,11 @@ class RandomChimera(gym.Env):
         self.available_actions = list(range(self.chimera.number_of_nodes()))
         self.mask = [1 for node in self.chimera.nodes]
         self.state = nx_to_pytorch(self.chimera, include_spin=self.include_spin)
+        self.action_space = spaces.Discrete(self.chimera.number_of_nodes())
 
     def flip_spin(self, action):
         graph = self.chimera
-        graph.nodes[action]["spin"][0] *= -1
+        graph.nodes[action]["spin"] *= -1
         return graph
 
     def compute_reward(self, old_graph,  new_graph, action: int):
@@ -187,7 +188,7 @@ class ComputeChimera(RandomChimera):
         return compute_energy_nx(self.chimera)
 
     def gauge_randomisation(self):
-        spins = {node: rn.choice([[-1.0], [1.0]]) for node in self.graph.nodes}
+        spins = {node: rn.choice([-1.0, 1.0]) for node in self.graph.nodes}
         nx.set_node_attributes(self.chimera, spins, "spin")
 
     def set_new_spins(self, spins):

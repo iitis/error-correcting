@@ -1,3 +1,5 @@
+import math
+import copy
 import torch
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -131,6 +133,24 @@ def nx_to_pytorch(graph, include_spin = False):
     else:
         data = from_networkx(graph, ["external", "bipartite", "position"], ["coupling"])
     return data
+
+
+def random_spin_flips(nx_graph, percentage):
+    """
+    :param nx_graph:
+    :param percentage:
+    :return:
+    """
+    assert percentage >= 0 and percentage < 1, "percentage should be number between 0 and 1"
+
+    graph = copy.deepcopy(nx_graph)
+    nodes = graph.nodes
+    number_of_sampled_nodes = math.floor(percentage * graph.number_of_nodes())
+    sampled_list = rn.sample(nodes, number_of_sampled_nodes)
+    for i in sampled_list:
+        graph.nodes[i]["spin"] *= -1
+    return graph
+
 
 
 n_step_transition = namedtuple('Transition', ('state', 'action', 'reward_n', 'state_n', 'expected'))

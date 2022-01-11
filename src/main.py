@@ -16,6 +16,8 @@ from src.DIRAC import DIRAC
 from src.environment import ComputeChimera
 from src.utils import compute_energy_nx
 
+
+"""
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
@@ -80,7 +82,7 @@ if __name__ == "__main__":
         if old_min_energy == min_eng:
             val_env.gauge_randomisation()
             graph = copy.deepcopy(val_env.chimera)
-        """
+        
         x = np.arange(val_env.chimera.number_of_nodes())
         min_eng_plot = [min_eng for _ in range(val_env.chimera.number_of_nodes())]
         plt.plot(x, energy_path, x, min_eng_plot)
@@ -88,7 +90,7 @@ if __name__ == "__main__":
         plt.ylabel("energy")
         plt.title('instance 1, try {}'.format( i + 1))
         plt.show()
-        """
+        
         del val_env
     x = np.arange(100)
     plt.plot(x, min_eng_plot)
@@ -96,7 +98,7 @@ if __name__ == "__main__":
     plt.ylabel("energy")
     plt.title('instance 1 after 100 repetitions')
     plt.show()
-    """
+   
     dataset = {}
     for i in range(1, 10):
         graph = generate_chimera_from_csv("/home/tsmierzchalski/pycharm_projects/error-correcting/datasets"
@@ -107,4 +109,5 @@ if __name__ == "__main__":
 
     with open('/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/chimera_512.pkl', 'wb') as f:
         pickle.dump(dataset, f)
-    """
+    
+"""

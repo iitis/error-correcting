@@ -9,8 +9,9 @@ import torch.optim as optim
 import torch.nn as nn
 
 from src.environment import RandomChimera, ComputeChimera
-from src.utils import nx_to_pytorch, TransitionMemory, n_step_transition
+from src.utils import nx_to_pytorch, TransitionMemory, n_step_transition, random_spin_flips
 from src.DIRAC import DIRAC
+from src.data_gen import generate_solved_chimera_from_csv
 from itertools import count
 from tqdm import tqdm
 from torch_geometric.data import Batch
@@ -25,7 +26,7 @@ world_size = torch.cuda.device_count()
 print('Let\'s use', world_size, 'GPUs!')
 
 # Global constants
-PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/models/model_C2_C4_v2.pt"
+PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/models/model_C2_C4_v3.pt"
 CHECKPOINT_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/models/model_checkpoint.pt"
 VAL_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/chimera_512.pkl"
 DATA_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/random_C2_trajectory1.pkl"
@@ -35,8 +36,8 @@ BATCH_SIZE = 128
 GAMMA = 0.999
 EPS_START = 1.0
 EPS_END = 0.05
-EPS_DECAY = 3500
-NUM_EPISODES = 20000
+EPS_DECAY = 1750
+NUM_EPISODES = 10000
 TARGET_UPDATE = 10
 N = 30
 CHECKPOINT = True
@@ -71,6 +72,9 @@ steps_done = 0
 validation_score = inf
 memory = TransitionMemory(80000)  # n-step transition
 q_values_global = None
+improved = False
+percentage = 0.05
+best_energy = inf
 
 if not CHECKPOINT:
     with open(VAL_PATH, 'rb') as f:
@@ -126,7 +130,7 @@ def validate():
     improve = False
     val_set = val_dataset["{}".format(choice)]
     val_env = ComputeChimera(val_set, include_spin=INCLUDE_SPIN)
-    min_eng = inf
+    min_eng = inf  # SERIOUS BUG
 
     if INCLUDE_SPIN:
         q_values_global = None
@@ -151,6 +155,50 @@ def validate():
 
     return improve
 
+
+def validate_solved():
+    global q_values_global
+    global improved
+    global percentage
+    global best_energy
+
+    sol_path = '/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/chimera_512_sol.pkl'
+    chimera_path = '/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/chimera_512_002.csv'
+
+    with open(sol_path, 'rb') as f:
+        solution_dict = pickle.load(f)
+    graph_solved = generate_solved_chimera_from_csv(chimera_path, solution_dict, 2)
+    graph_fliped = random_spin_flips(graph_solved, percentage)
+
+    val_env = ComputeChimera(graph_fliped, include_spin=INCLUDE_SPIN)
+    min_eng = val_env.energy()
+    old_best_energy = best_energy
+
+    if INCLUDE_SPIN:
+        q_values_global = None
+    else:
+        with torch.no_grad():
+            q_values_global = policy_net(val_env.state.to(device))
+
+    for t in count():
+        # Select and perform an action
+        action = select_action_policy(val_env)
+        _, _, done, _ = val_env.step(action)
+        energy = val_env.energy()
+        if energy < min_eng:
+            min_eng = energy
+            # update best instance
+            best_energy = min_eng if min_eng < best_energy else best_energy
+            improved = True
+        if done:  # it is done when model performs final spin flip
+            break
+
+    if improved:
+        percentage = percentage - 0.01 if percentage > 0.01 else 0.01
+        if percentage == 0.01:
+            improved = True if best_energy < old_best_energy else False
+
+    return improved
 
 def optimize_model():
     if len(memory) < BATCH_SIZE:
@@ -234,19 +282,17 @@ if __name__ == "__main__":
 
         if episode % TARGET_UPDATE == 0:
             target_net.load_state_dict(policy_net.state_dict())
-            validation = validate()
-
+            validation = validate_solved()
 
             if validation:
                 torch.save({
                     'episode': episode,
                     'model_state_dict': policy_net.state_dict()}, PATH)
 
-
         torch.save({
             'episode': episode,
             'model_state_dict': policy_net.state_dict(),
             'optimizer_state_dict': optimizer.state_dict()}, CHECKPOINT_PATH)
 
-        with open(BEST_VALUES_PATH, 'wb') as f:
-            pickle.dump(val_dataset, f)
+        #with open(BEST_VALUES_PATH, 'wb') as f:
+        #    pickle.dump(val_dataset, f)
