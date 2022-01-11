@@ -4,7 +4,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.data import Batch
 from collections import namedtuple, deque
-from src.data_gen import transform, transform_batch_square
 from torch_sparse import SparseTensor
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
