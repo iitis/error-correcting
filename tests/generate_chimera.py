@@ -14,7 +14,7 @@ class TestChimeraGeneration(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.g = generate_chimera((cls.dim1, cls.dim2))
+        cls.g = generate_chimera(cls.dim1, cls.dim2)
 
     def test_prints(self):
         if self.draw:
@@ -44,6 +44,7 @@ class TestChimeraGeneration(unittest.TestCase):
     def test_attributes(self):
         self.assertEqual(len(nx.get_node_attributes(self.g, "spin")), len(self.g.nodes))
         self.assertEqual(len(nx.get_edge_attributes(self.g, "coupling")), len(self.g.edges))
+        self.assertEqual(len(nx.get_node_attributes(self.g, "chimera_index")), len(self.g.nodes))
 
     def test_pytorch(self):
         data = nx_to_pytorch(self.g)
@@ -54,7 +55,7 @@ class TestChimeraGeneration(unittest.TestCase):
         self.assertIsNotNone(data.x)
         self.assertIsNotNone(data.edge_attr)
 
-        self.assertEqual(list(data.x.shape), [data.num_nodes, 4])
+        self.assertEqual(list(data.x.shape), [data.num_nodes, 5])
         self.assertEqual(list(data.edge_attr.shape), [data.num_edges, 1])
 
 
@@ -74,6 +75,7 @@ class TestChimeraCSV(unittest.TestCase):
 
     def test_attributes(self):
         self.assertEqual(len(nx.get_node_attributes(self.g, "spin")), len(self.g.nodes))
+        self.assertEqual(len(nx.get_node_attributes(self.g, "chimera_index")),  len(self.g.nodes))
         self.assertEqual(len(nx.get_node_attributes(self.g, "external")), len(self.g.nodes))
         self.assertEqual(len(nx.get_edge_attributes(self.g, "coupling")), len(self.g.edges))
 
@@ -86,7 +88,7 @@ class TestChimeraCSV(unittest.TestCase):
         self.assertIsNotNone(data.x)
         self.assertIsNotNone(data.edge_attr)
 
-        self.assertEqual(list(data.x.shape), [data.num_nodes, 4])
+        self.assertEqual(list(data.x.shape), [data.num_nodes, 5])
         self.assertEqual(list(data.edge_attr.shape), [data.num_edges, 1])
 
 class TestChimeraSol(unittest.TestCase):
@@ -113,6 +115,7 @@ class TestChimeraSol(unittest.TestCase):
 
     def test_attributes(self):
         self.assertEqual(len(nx.get_node_attributes(self.g, "spin")), len(self.g.nodes))
+        self.assertEqual(len(nx.get_node_attributes(self.g, "chimera_index")), len(self.g.nodes))
         self.assertEqual(len(nx.get_node_attributes(self.g, "external")), len(self.g.nodes))
         self.assertEqual(len(nx.get_edge_attributes(self.g, "coupling")), len(self.g.edges))
 
@@ -125,7 +128,7 @@ class TestChimeraSol(unittest.TestCase):
         self.assertIsNotNone(data.x)
         self.assertIsNotNone(data.edge_attr)
 
-        self.assertEqual(list(data.x.shape), [data.num_nodes, 4])
+        self.assertEqual(list(data.x.shape), [data.num_nodes, 5])
         self.assertEqual(list(data.edge_attr.shape), [data.num_edges, 1])
 
 
