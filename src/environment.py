@@ -99,7 +99,7 @@ class RandomChimera(Chimera):
 
     def reset(self, random_dim=False):
         # new instance
-        rdim = rng.integers(1, 3, 2, endpoint=True)
+        rdim = rng.integers(1, 4, 2, endpoint=True)
         dim = rdim if random_dim else (self.n, self.m)
         self.chimera = generate_chimera(dim[0], dim[1])
         self.state = nx_to_pytorch(self.chimera, include_spin=self.include_spin)
