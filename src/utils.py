@@ -88,7 +88,7 @@ def random_spin_flips(nx_graph, percentage):
     return graph
 
 
-n_step_transition = namedtuple('Transition', ('state', 'action', 'reward_n', 'state_n', 'expected'))
+n_step_transition = namedtuple('Transition', ('state', 'action', 'reward_n', 'state_n'))
 
 
 class TransitionMemory(object):
