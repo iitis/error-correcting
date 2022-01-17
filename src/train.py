@@ -136,7 +136,7 @@ def validate(validation_score, val_instance, q_values_global):
 
 def optimize_model():
     if len(memory) < BATCH_SIZE:
-        return 0, 0, 0, 0
+        return inf
 
     transitions = memory.sample(BATCH_SIZE)
     # Transpose the batch (see https://stackoverflow.com/a/19343/3343043 for
@@ -149,17 +149,17 @@ def optimize_model():
     state_batch = Batch.from_data_list(batch.state).to(device)
     stop_states = Batch.from_data_list(batch.state_n).to(device)
 
-    expected_state_action_values = target_net(stop_states).max() * GAMMA + reward_batch
-
     # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
     # columns of actions taken. These are the actions which would've been taken
     # for each batch state according to policy_net
 
-    state_action_values = policy_net(state_batch).gather(0, action_batch)
+
 
     # Compute loss
+    expected_state_action_values = target_net(stop_states).max() * GAMMA + reward_batch
+    state_action_values = policy_net(state_batch).gather(0, action_batch)
 
-    criterion = nn.MSELoss()
+    criterion = nn.SmoothL1Loss()
     loss = criterion(state_action_values, expected_state_action_values)
     # Optimize the model
 
