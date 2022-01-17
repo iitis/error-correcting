@@ -95,13 +95,14 @@ class RandomChimera(Chimera):
 
         self.n = n
         self.m = m
+        self.dim = (self.n, self.m)
         self.include_spin = include_spin
 
-    def reset(self, random_dim=False):
+    def reset(self, random_dim=False, low=2, high=3):
         # new instance
-        rdim = rng.integers(1, 4, 2, endpoint=True)
-        dim = rdim if random_dim else (self.n, self.m)
-        self.chimera = generate_chimera(dim[0], dim[1])
+        rdim = rng.integers(low, high, 2, endpoint=True)
+        self.dim = rdim if random_dim else (self.n, self.m)
+        self.chimera = generate_chimera(self.dim[0], self.dim[1])
         self.state = nx_to_pytorch(self.chimera, include_spin=self.include_spin)
         # reset actions taken
         self.done_counter = 0

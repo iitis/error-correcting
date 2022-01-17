@@ -13,11 +13,11 @@ class SGNN(nn.Module):
     def __init__(self, include_spin=False):
         super(SGNN, self).__init__()
         if include_spin:
+            self.edge1 = EdgeCentric(6, 6, 1, 2)  # Edge 1->8
+            self.node1 = NodeCentric(6, 6, 8, 10)  # Node 4->16
+        else:
             self.edge1 = EdgeCentric(5, 6, 1, 2)  # Edge 1->8
             self.node1 = NodeCentric(5, 6, 8, 10)  # Node 4->16
-        else:
-            self.edge1 = EdgeCentric(4, 6, 1, 2)  # Edge 1->8
-            self.node1 = NodeCentric(4, 6, 8, 10)  # Node 4->16
 
         self.edge2 = EdgeCentric(16, 32, 8, 16)  # Edge 8->48
         self.node2 = NodeCentric(16, 32, 48, 24)  # Node 16->56
@@ -64,7 +64,7 @@ class DIRAC(nn.Module):
     def __init__(self, include_spin=False):
         super(DIRAC, self).__init__()
 
-        self.encoder = SGNN(include_spin=include_spin).to(device)
+        self.encoder = SGNNMaxPool(include_spin=include_spin).to(device)
 
         self.fc1 = nn.Linear(12, 100)
         self.fc2 = nn.Linear(100, 25)
@@ -117,4 +117,71 @@ class NodeCentric(nn.Module):
         edge_attr = self.fce(adj)
 
         return torch.cat((x, edge_attr), dim=1)
+
+
+class SGNNMaxPool(nn.Module):
+
+    def __init__(self, include_spin=False):
+        super(SGNNMaxPool, self).__init__()
+
+        self.max_pool = nn.MaxPool1d(3)
+
+        if include_spin:
+            self.edge1 = EdgeCentric(6, 10, 1, 2)  # Edge 1->12
+             # Edge 12->4
+            self.node1 = NodeCentric(6, 18, 4, 12)  # Node 6->30
+              # Node 30->10
+        else:
+            self.edge1 = EdgeCentric(5, 10, 1, 2)  # Edge 1->12
+             # Edge 12->4
+            self.node1 = NodeCentric(5, 18, 4, 12)  # Node 5->30
+              # Node 30->10
+
+        self.edge2 = EdgeCentric(10, 18, 4, 12)  # Edge 4->30
+         # Edge 30 -> 10
+        self.node2 = NodeCentric(10, 18, 10, 12)  # Node 10->30
+          # Node 30->10
+
+        self.edge3 = EdgeCentric(10, 18, 10, 12)  # Edge 10->30
+         # Edge 30 -> 10
+        self.node3 = NodeCentric(10, 18, 10, 12)  # Node 10->30
+          # Node 30->10
+
+        self.edge4 = EdgeCentric(10, 18, 10, 12)  # Edge 10->30
+         # Edge 30 -> 10
+        self.node4 = NodeCentric(10, 18, 10, 12)  # Node 10->30
+          # Node 30->10
+
+        self.edge5 = EdgeCentric(10, 3, 10, 3)  # Edge 10->6
+        self.node5 = NodeCentric(10, 3, 6, 3)  # Node 10->6
+
+
+    def forward(self, x, edge_index, edge_attr):
+
+        edge_attr = self.max_pool(F.relu(self.edge1(x, edge_index, edge_attr)))
+        x = self.max_pool(F.relu(self.node1(x, edge_index, edge_attr)))
+
+        edge_attr = self.max_pool(F.relu(self.edge2(x, edge_index, edge_attr)))
+        x = self.max_pool(F.relu(self.node2(x, edge_index, edge_attr)))
+
+        edge_attr = self.max_pool(F.relu(self.edge3(x, edge_index, edge_attr)))
+        x = self.max_pool(F.relu(self.node3(x, edge_index, edge_attr)))
+
+        edge_attr = self.max_pool(F.relu(self.edge4(x, edge_index, edge_attr)))
+        x = self.max_pool(F.relu(self.node4(x, edge_index, edge_attr)))
+
+        edge_attr = F.relu(self.edge5(x, edge_index, edge_attr))
+        x = F.relu(self.node5(x, edge_index, edge_attr))
+
+        action_embedding = x  # node attributes [N, 6]
+        state_embedding = torch.sum(action_embedding, dim=0)  # [1, 6]
+        # add virtual empty first dimensions (in pytorch size [1,6] is just [6])
+        state_embedding = state_embedding[None, :]
+        state_embedding = state_embedding.repeat(x.size()[0], 1)  # change od dimensions to later concatenate
+
+        output = torch.cat((state_embedding, action_embedding), dim=1)  # [N, 12]
+
+        return output
+
+
 

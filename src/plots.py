@@ -11,13 +11,20 @@ import itertools
 
 from src.data_gen import generate_chimera_from_csv
 
-PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/chimera_512_001.txt"
-
-chimera = pd.read_csv(PATH)
-print(chimera)
 
 
+EPS_START = 1.0
+EPS_END = 0.05
+NUM_EPISODES = 20000
+EPS_DECAY = int(NUM_EPISODES * 0.15)
 
+def func(x):
+    return EPS_END + (EPS_START - EPS_END) * np.exp(-1. * x / EPS_DECAY)
+
+x = np.arange(NUM_EPISODES)
+
+plt.plot(x, func(x))
+plt.show()
 
 
 

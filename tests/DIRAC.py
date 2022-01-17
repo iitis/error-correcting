@@ -2,7 +2,7 @@ import unittest
 import torch
 import torch.nn as nn
 
-from src.DIRAC import NodeCentric, EdgeCentric, SGNN, DIRAC
+from src.DIRAC import NodeCentric, EdgeCentric, SGNN, DIRAC, SGNNMaxPool
 from src.data_gen import generate_chimera
 from src.utils import nx_to_pytorch
 
@@ -22,12 +22,13 @@ class TestDIRAC(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.g = generate_chimera((cls.dim1, cls.dim2))
+        cls.g = generate_chimera(cls.dim1, cls.dim2)
         cls.data = nx_to_pytorch(cls.g)
 
-        cls.node = NodeCentric(4, cls.node_par1, 1, cls.node_par2)
-        cls.edge = EdgeCentric(4, cls.edge_par1, 1, cls.edge_par2)
+        cls.node = NodeCentric(5, cls.node_par1, 1, cls.node_par2)
+        cls.edge = EdgeCentric(5, cls.edge_par1, 1, cls.edge_par2)
         cls.sgnn = SGNN()
+        cls.sgnnmax = SGNNMaxPool()
         cls.dirac = DIRAC()
 
         if cls.cuda:
@@ -35,6 +36,7 @@ class TestDIRAC(unittest.TestCase):
             cls.node.cuda()
             cls.edge.cuda()
             cls.sgnn.cuda()
+            cls.sgnnmax.cuda()
             cls.dirac.cuda()
 
         if cls.parallel:
@@ -46,6 +48,7 @@ class TestDIRAC(unittest.TestCase):
         cls.node_sol = cls.node(cls.data.x, cls.data.edge_index, cls.data.edge_attr)
         cls.edge_sol = cls.edge(cls.data.x, cls.data.edge_index, cls.data.edge_attr)
         cls.encode = cls.sgnn(cls.data.x, cls.data.edge_index, cls.data.edge_attr)
+        cls.encode2 = cls.sgnnmax(cls.data.x, cls.data.edge_index, cls.data.edge_attr)
         cls.sol = cls.dirac(cls.data)
 
     def test_node(self):
@@ -56,6 +59,9 @@ class TestDIRAC(unittest.TestCase):
 
     def test_SGNN(self):
         self.assertEqual(list(self.encode.shape), [self.data.num_nodes, 12])
+
+    def test_SGNNMaxPool(self):
+        self.assertEqual(list(self.encode2.shape), [self.data.num_nodes, 12])
 
     def test_DIRAC(self):
         self.assertEqual(list(self.sol.shape), [self.data.num_nodes])
