@@ -69,7 +69,7 @@ if CHECKPOINT:
 
     episode_checkpoint = checkpoint["episode"]
     val_instance = checkpoint['val_instance']
-    validation_score = -52.401285609054625
+    validation_score = checkpoint['val_score']
 
 else:
     episode_checkpoint = -1
