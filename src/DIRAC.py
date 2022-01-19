@@ -64,7 +64,8 @@ class DIRAC(nn.Module):
     def __init__(self, include_spin=False):
         super(DIRAC, self).__init__()
 
-        self.encoder = SGNNMaxPool(include_spin=include_spin).to(device)
+        self.encoder = SGNNMaxPool(include_spin=include_spin)
+        #self.encoder = nn.DataParallel(self.encoder)
 
         self.fc1 = nn.Linear(12, 100)
         self.fc2 = nn.Linear(100, 25)

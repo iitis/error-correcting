@@ -32,27 +32,29 @@ world_size = torch.cuda.device_count()
 print('Let\'s use', world_size, 'GPUs!')
 
 # Global constants
-PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/models/model_C1_C3.pt"
+PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/models/model_C3.pt"
 CHECKPOINT_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/models/model_checkpoint.pt"
 VAL_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/chimera_512.pkl"
 DATA_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/random_C2_trajectory1.pkl"
 BEST_VALUES_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/chimera_512_checkpoint.pkl"
 
-BATCH_SIZE = 128
+BATCH_SIZE = 64
 GAMMA = 0.999
 EPS_START = 1.0
 EPS_END = 0.05
-NUM_EPISODES = 51000
+NUM_EPISODES = 300002
 EPS_DECAY = int(NUM_EPISODES * 0.20)
 TARGET_UPDATE = 10
-N = 30
-CHECKPOINT = True
+N = 10
+CHECKPOINT = False
 INCLUDE_SPIN = True
 
 # Models and optimizer
 policy_net = DIRAC(include_spin=INCLUDE_SPIN)
 target_net = DIRAC(include_spin=INCLUDE_SPIN)
 target_net.load_state_dict(policy_net.state_dict())
+#policy_net = DataParallel(policy_net)
+#target_net = DataParallel(target_net)
 policy_net = policy_net.to(device)
 target_net = target_net.to(device)
 target_net.eval()
@@ -134,45 +136,48 @@ def validate(validation_score, val_instance, q_values_global):
     return min_eng
 
 
-def optimize_model():
+def optimize_model(t_max):
     if len(memory) < BATCH_SIZE:
         return inf
+    sum_loss = 0
 
-    transitions = memory.sample(BATCH_SIZE)
-    # Transpose the batch (see https://stackoverflow.com/a/19343/3343043 for
-    # detailed explanation). This converts batch-array of Transitions
-    # to Transition of batch-arrays.
-    batch = n_step_transition(*zip(*transitions))
+    for _ in range(t_max):
+        transitions = memory.sample(BATCH_SIZE)
+        # Transpose the batch (see https://stackoverflow.com/a/19343/3343043 for
+        # detailed explanation). This converts batch-array of Transitions
+        # to Transition of batch-arrays.
+        batch = n_step_transition(*zip(*transitions))
 
-    action_batch = torch.tensor(batch.action, device=device)
-    reward_batch = torch.tensor(batch.reward_n, device=device)
-    state_batch = Batch.from_data_list(batch.state).to(device)
-    stop_states = Batch.from_data_list(batch.state_n).to(device)
+        action_batch = torch.tensor(batch.action, device=device)
+        reward_batch = torch.tensor(batch.reward_n, device=device)
+        state_batch = Batch.from_data_list(batch.state).to(device)
+        stop_states = Batch.from_data_list(batch.state_n).to(device)
 
-    # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
-    # columns of actions taken. These are the actions which would've been taken
-    # for each batch state according to policy_net
+        # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
+        # columns of actions taken. These are the actions which would've been taken
+        # for each batch state according to policy_net
 
+        # Compute loss
+        expected_state_action_values = target_net(stop_states).max() * GAMMA + reward_batch
+        state_action_values = policy_net(state_batch).gather(0, action_batch)
 
+        criterion = nn.MSELoss()
+        loss = criterion(state_action_values, expected_state_action_values)
+        sum_loss += loss
+        # Optimize the model
 
-    # Compute loss
-    expected_state_action_values = target_net(stop_states).max() * GAMMA + reward_batch
-    state_action_values = policy_net(state_batch).gather(0, action_batch)
+        optimizer.zero_grad()
+        loss.backward()
+        for param in policy_net.parameters():
+            param.grad.data.clamp_(-1, 1)  # gradient clipping for numerical stability
+        optimizer.step()
 
-    criterion = nn.SmoothL1Loss()
-    loss = criterion(state_action_values, expected_state_action_values)
-    # Optimize the model
-
-    optimizer.zero_grad()
-    loss.backward()
-    for param in policy_net.parameters():
-        param.grad.data.clamp_(-1, 1)  # gradient clipping for numerical stability
-    optimizer.step()
+    return sum_loss
 
 
 if __name__ == "__main__":
 
-    env = RandomChimera(2, 2, include_spin=INCLUDE_SPIN)
+    env = RandomChimera(3, 3, include_spin=INCLUDE_SPIN)
 
     for episode in tqdm(range(NUM_EPISODES), leave=None, desc="episodes"):
 
@@ -201,34 +206,34 @@ if __name__ == "__main__":
             # Store the transition in memory
             trajectory.append([state, action, reward])
 
-            # Perform one step of the optimization (on the policy network)
-            optimize_model()
+
             if done:  # it is done when model performs final spin flip
                 break
         # Get n-step sum of rewards and and predicted rewards
 
+        # Perform one step of the optimization (on the policy network)
+        sum_loss = optimize_model(env.action_space.n)  # one iteration for every move
+
+
         for t in range(len(trajectory)):
             # state, action reward_n, state_n
             stop = t + N if len(trajectory) - t > N else len(trajectory)-1
-
             reward_n = 0
             for k in range(t, stop + 1):
-                reward_n += trajectory[k][2]
+                reward_n += GAMMA * trajectory[k][2]
             memory.push(trajectory[t][0].to("cpu"), trajectory[t][1], reward_n, trajectory[stop][0].to("cpu"))
         steps_done += 1
 
         if episode % TARGET_UPDATE == 0:
             target_net.load_state_dict(policy_net.state_dict())
-            validation_score_new = validate(validation_score, val_instance, q_values_global)
-            print(validation_score_new)
-            print(steps_done)
 
-            if validation_score_new <= validation_score:
-                validation_score = validation_score_new
-                print(validation_score)
-                torch.save({
-                    'episode': episode,
-                    'model_state_dict': policy_net.state_dict()}, PATH)
+        if sum_loss < validation_score:
+            validation_score = sum_loss
+            print(validation_score)
+            torch.save({
+                'episode': episode,
+                'model_state_dict': policy_net.state_dict()}, PATH)
+
 
         torch.save({
             'episode': episode,
