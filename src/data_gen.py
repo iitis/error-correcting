@@ -73,15 +73,15 @@ def generate_chimera(n, m, distribution="normal", params=None, spin_conf="random
     return g
 
 
-def generate_chimera_from_csv(file, spin_conf="random"):
+def generate_chimera_from_txt(path, spin_conf="random"):
     """
-    Generates chimera with random spins from csv file
+    Generates chimera with random spins from csv file. It asumes square
     :param spin_conf:
-    :param file:
+    :param path:
     :return:
     """
-    chimera_csv = pd.read_csv(file, index_col=0)
-    num_of_nodes = chimera_csv["0"].max()
+    chimera_csv = pd.read_csv(path, skiprows=[0], sep=" ", header=None)
+    num_of_nodes = max(chimera_csv[0].max(), chimera_csv[1].max())
     num_of_cells = num_of_nodes/8
     dim = num_of_cells ** (1/2)
     n = int(dim)
@@ -128,7 +128,7 @@ def create_solution_dict(file, save):
 
 def generate_solved_chimera_from_csv(file, solution_dict, number):
 
-    g = generate_chimera_from_csv(file=file)
+    g = generate_chimera_from_txt(path=file)
 
     spins = solution_dict["{}".format(number)]["spins"]
 
