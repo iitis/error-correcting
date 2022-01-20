@@ -25,6 +25,8 @@ MODEL_PATH = ROOT_DIR + "/models/model_C3.pt"
 GROUND_PATH = ROOT_DIR + "/datasets/ground_states/"
 PATH_128 = ROOT_DIR + "/datasets/128/"
 PATH_128_GROUND = GROUND_PATH + "groundstates_128.txt"
+PATH_512 = ROOT_DIR + "/datasets/512/"
+PATH_512_GROUND = GROUND_PATH + "groundstates_512.txt"
 
 model = DIRAC(include_spin=True).to(device)
 model.load_state_dict(torch.load(MODEL_PATH)["model_state_dict"])
@@ -33,7 +35,9 @@ q_values_global = None
 
 STEPS = 10
 
-#create_solution_dict(PATH_128_GROUND, GROUND_PATH + "dict_128")
+passes = 5
+
+#create_solution_dict(PATH_512_GROUND, GROUND_PATH + "dict_512")
 
 def select_action_policy(environment, q_values_global):
 
@@ -56,7 +60,7 @@ def solve(nx_graph):
      energy_path.append(energy)
      for _ in count():
           # Select and perform an action
-          action = rn.choice(env.available_actions)#select_action_policy(env, q_values_global)
+          action = rn.choice(env.available_actions) #select_action_policy(env, q_values_global)
           _, _, done, _ = env.step(action)
           energy = env.energy()
           energy_path.append(energy)
@@ -69,30 +73,26 @@ def solve(nx_graph):
 with open(GROUND_PATH + "dict_128", 'rb') as f:
      solution_dict = pickle.load(f)
 
-directory = os.fsencode(PATH_128)
-improved = []
-ground_state = []
-failed = []
-for file in tqdm(os.listdir(directory)):
-    filename = os.fsdecode(file)
-    number = int(filename[0:3])
-    chimera = generate_solved_chimera_from_csv(PATH_128 + filename, solution_dict, number)
-    chimera_disturbed = copy.deepcopy(random_spin_flips(chimera, 0.1))
-    start = compute_energy_nx(chimera_disturbed)
-    solution, energy_path = solve(chimera_disturbed)
-    ground = solution_dict[str(number)]["ground"]
-    if solution < start:
-        improved.append(1)
-    else:
-        improved.append(0)
-        failed.append(number)
+for mode in ["model", "rng"]:
+    for percentage in [0.1, 0.05, 0.01]:
+        for p in range(passes):
+
+            directory = os.fsencode(PATH_128)
+            improved = []
+            for file in tqdm(os.listdir(directory)):
+                filename = os.fsdecode(file)
+                number = int(filename[0:3])
+                chimera = generate_solved_chimera_from_csv(PATH_128 + filename, solution_dict, number)
+                chimera_disturbed = copy.deepcopy(random_spin_flips(chimera, 0.01))
+                start = compute_energy_nx(chimera_disturbed)
+                solution, energy_path = solve(chimera_disturbed)
+                ground = solution_dict[str(number)]["ground"]
+                if solution < start:
+                    improved.append(1)
+                else:
+                    improved.append(0)
 
 
-    if  math.isclose(solution, ground, abs_tol=10**-3):
-         ground_state.append(1)
-    else:
-        ground_state.append(0)
+            print("{} for diruption {} after {} passes: {}".format(mode, percentage, p, sum(improved)/100))
 
-print(sum(improved)/100, sum(ground_state)/100)
-print(failed)
 
