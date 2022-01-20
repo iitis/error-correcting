@@ -9,8 +9,6 @@ import numpy as np
 import pandas as pd
 import itertools
 
-from src.data_gen import generate_chimera_from_csv
-
 
 
 EPS_START = 1.0
@@ -21,10 +19,17 @@ EPS_DECAY = int(NUM_EPISODES * 0.15)
 def func(x):
     return EPS_END + (EPS_START - EPS_END) * np.exp(-1. * x / EPS_DECAY)
 
-x = np.arange(NUM_EPISODES)
+x = [0.01, 0.05, 0.1, 0.15, 0.2]
+y_128 = [9.4, 43.5, 84.5, 95.0, 99.4]
 
-plt.plot(x, func(x))
-plt.show()
+plt.plot(x, y_128, label = "Chimera 128")
+plt.plot(x, y_128, 'or')
+plt.legend(loc="upper left")
+
+plt.xlabel("Percent of Distortion (fliped spins)")
+plt.ylabel('Probability of improving solution')
+
+plt.savefig('prob_plot.png')
 
 
 

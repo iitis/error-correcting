@@ -52,7 +52,7 @@ def select_action_policy(environment, q_values_global):
         action = mask * q_values
         return action.argmax().item()
 
-def solve(nx_graph):
+def solve(nx_graph, mode, draw=False):
      env = Chimera(nx_graph, include_spin=True)
      min_eng = math.inf
      energy_path = []
@@ -60,7 +60,7 @@ def solve(nx_graph):
      energy_path.append(energy)
      for _ in count():
           # Select and perform an action
-          action = rn.choice(env.available_actions) #select_action_policy(env, q_values_global)
+          action = rn.choice(env.available_actions) if mode == "rng" else select_action_policy(env, q_values_global)
           _, _, done, _ = env.step(action)
           energy = env.energy()
           energy_path.append(energy)
@@ -68,13 +68,28 @@ def solve(nx_graph):
                min_eng = energy
           if done:  # it is done when model performs final spin flip
                break
-     return min_eng, energy_path
+     return min_eng
+
+def eps_multi(nx_graph, t_max, eps):
+
+    graph = copy.deepcopy(nx_graph)
+    solution = compute_energy_nx(graph)
+    for t in t_max:
+        solution_new, graph_new = solve(graph, "model")
+        if solution_new < solution:
+            solution = solution_new
+            graph = copy.deepcopy(graph_new)
+        else:
+            pass
+
+
+
 
 with open(GROUND_PATH + "dict_128", 'rb') as f:
      solution_dict = pickle.load(f)
 
-for mode in ["model", "rng"]:
-    for percentage in [0.1, 0.05, 0.01]:
+for mode in ["model"]:
+    for percentage in [0.15, 0.20]: #[0.1, 0.05, 0.01]:
         for p in range(passes):
 
             directory = os.fsencode(PATH_128)
@@ -83,10 +98,9 @@ for mode in ["model", "rng"]:
                 filename = os.fsdecode(file)
                 number = int(filename[0:3])
                 chimera = generate_solved_chimera_from_csv(PATH_128 + filename, solution_dict, number)
-                chimera_disturbed = copy.deepcopy(random_spin_flips(chimera, 0.01))
+                chimera_disturbed = copy.deepcopy(random_spin_flips(chimera, percentage))
                 start = compute_energy_nx(chimera_disturbed)
-                solution, energy_path = solve(chimera_disturbed)
-                ground = solution_dict[str(number)]["ground"]
+                solution = solve(chimera_disturbed, mode)
                 if solution < start:
                     improved.append(1)
                 else:
