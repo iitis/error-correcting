@@ -1,5 +1,6 @@
 import torch
 import math
+import os
 import csv
 import pickle
 import time
@@ -13,7 +14,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from copy import deepcopy
 from src.environment import RandomChimera, Chimera
-from src.utils import TransitionMemory, n_step_transition
+from src.utils import TransitionMemory, n_step_transition, compute_energy_nx, nx_to_pytorch
 from src.DIRAC import DIRAC
 from src.data_gen import generate_chimera
 from itertools import count
@@ -32,7 +33,8 @@ world_size = torch.cuda.device_count()
 print('Let\'s use', world_size, 'GPUs!')
 
 # Global constants
-PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/models/model_C3.pt"
+ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
+PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/models/model_C3_v2.pt"
 CHECKPOINT_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/models/model_checkpoint.pt"
 VAL_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/chimera_512.pkl"
 DATA_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/random_C2_trajectory1.pkl"
@@ -42,11 +44,11 @@ BATCH_SIZE = 64
 GAMMA = 0.999
 EPS_START = 1.0
 EPS_END = 0.05
-NUM_EPISODES = 300002
+NUM_EPISODES = 50000
 EPS_DECAY = int(NUM_EPISODES * 0.20)
 TARGET_UPDATE = 10
 N = 10
-CHECKPOINT = False
+CHECKPOINT = True
 INCLUDE_SPIN = True
 
 # Models and optimizer
@@ -69,19 +71,27 @@ if CHECKPOINT:
 
     episode_checkpoint = checkpoint["episode"]
     val_instance = checkpoint['val_instance']
-    validation_score = checkpoint['val_score']
+    validation_score = inf #checkpoint['val_score']
 
 else:
     episode_checkpoint = -1
-    val_instance = generate_chimera(8, 8)
     validation_score = inf
 
 # Global variables
 steps_done = 0
 
-memory = TransitionMemory(240000)  # n-step transition, will have aprox. 70 GB size
+memory = TransitionMemory(300000)  # n-step transition, will have aprox. 70 GB size
 q_values_global = None
 
+def generate_val_set(num):
+    elements = []
+    for _ in range(num):
+        graph = generate_chimera(16, 16)
+        elements.append(graph)
+    return elements
+
+def generate_val_set_hard(directory, num):
+    pass
 
 def select_action_epsilon_greedy(environment, steps_done):
 
@@ -108,32 +118,15 @@ def select_action_policy(environment, q_values_global):
         return action.argmax().item()
 
 
-def validate(validation_score, val_instance, q_values_global):
+def validate(val_set):
+    s = 0
+    for element in val_set:
+        state = nx_to_pytorch(element, True).to(device)
+        s += policy_net(state).max().item()
+    return s/len(val_set)
 
-    val_env = Chimera(val_instance, include_spin=INCLUDE_SPIN)
-    min_eng = validation_score
-    energy_path = []
-    for _ in count():
-        # Select and perform an action
-        action = select_action_policy(val_env, q_values_global)
-        _, _, done, _ = val_env.step(action)
-        energy = val_env.energy()
-        energy_path.append(energy)
-        if energy < min_eng:
-            min_eng = energy
 
-        if done:  # it is done when model performs final spin flip
-            break
 
-    x = np.arange(val_env.chimera.number_of_nodes())
-    min_eng_plot = [min_eng for _ in range(val_env.chimera.number_of_nodes())]
-    plt.plot(x, energy_path, x, min_eng_plot)
-    plt.xlabel("steps")
-    plt.ylabel("energy")
-    plt.title('instance 1, try {}, {}'.format(1, "val"))
-    plt.show()
-
-    return min_eng
 
 
 def optimize_model(t_max):

@@ -67,9 +67,11 @@ class DIRAC(nn.Module):
         self.encoder = SGNNMaxPool(include_spin=include_spin)
         #self.encoder = nn.DataParallel(self.encoder)
 
-        self.fc1 = nn.Linear(12, 100)
-        self.fc2 = nn.Linear(100, 25)
-        self.fc3 = nn.Linear(25, 1)
+        self.fc1 = nn.Linear(12, 36)
+        self.fc2 = nn.Linear(36, 100)
+        self.fc3 = nn.Linear(100, 100)
+        self.fc4 = nn.Linear(100, 25)
+        self.fc5 = nn.Linear(25, 1)
 
     def forward(self, batch):
         # output should have size [1, N] (Q-values)
@@ -79,9 +81,37 @@ class DIRAC(nn.Module):
         Q = F.relu(self.fc1(Q))
         Q = F.relu(self.fc2(Q))
         Q = F.relu(self.fc3(Q))
+        Q = F.relu(self.fc4(Q))
+        Q = F.leaky_relu(self.fc5(Q), 0.1)
+        return Q.reshape(-1)
+"""
+class DIRAC(nn.Module):
+
+    def __init__(self, dim=(3, 3)):
+        super(DIRAC, self).__init__()
+
+        self.dim = dim
+        self.encoder = SGNN().to(device)
+
+        self.fc1 = nn.Linear(10, 100)
+        self.fc2 = nn.Linear(100, 25)
+        self.fc3 = nn.Linear(25, 1)
+
+    def forward(self, batch):
+        # output should have size [1, N] (Q-values)
+        if isinstance(batch, Batch):
+            batch = transform_batch_square(batch)
+        else:
+            batch = transform(batch, len(self.dim))
+
+        state_action_embedding = self.encoder(batch)
+        Q = state_action_embedding  # change matrix [N+1, 5] into vector
+        Q = F.relu(self.fc1(Q))
+        Q = F.relu(self.fc2(Q))
+        Q = F.relu(self.fc3(Q))
 
         return Q.reshape(-1)
-
+"""
 
 class EdgeCentric(nn.Module):
 
