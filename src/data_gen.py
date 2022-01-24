@@ -1,5 +1,6 @@
 import torch
 import pickle
+import ast
 import random as rn
 import networkx as nx
 import pandas as pd
@@ -128,7 +129,7 @@ def create_solution_dict(file, save):
         pickle.dump(solution_dict, f)
 
 
-def generate_solved_chimera_from_csv(file, solution_dict, number):
+def generate_solved_chimera_from_txt(file, solution_dict, number):
 
     g = generate_chimera_from_txt(path=file)
 
@@ -137,3 +138,24 @@ def generate_solved_chimera_from_csv(file, solution_dict, number):
     set_node_attributes(g, spins, "spin")
 
     return g
+
+def generate_chimera_from_csv_dwave(path_to_csv, pos):
+    df = pd.read_csv(path_to_csv, index_col=0)
+    spins = df["sample"][pos]
+    spins = ast.literal_eval(spins)
+
+    external = df["h"][pos]
+    external = ast.literal_eval(external)
+
+    edge_attr = df["J"][pos]
+    edge_attr = ast.literal_eval(edge_attr)
+    graph = nx.Graph()
+    graph.add_nodes_from(spins.keys())
+    graph.add_edges_from(edge_attr.keys())
+
+    nx.set_node_attributes(graph, spins, "spin")
+    nx.set_node_attributes(graph, external, "external")
+
+    nx.set_edge_attributes(graph, edge_attr, "coupling")
+
+    return graph

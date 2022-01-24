@@ -18,7 +18,7 @@ from itertools import count
 from tqdm import tqdm
 from pathlib import Path
 from src.environment import Chimera
-from src.data_gen import generate_solved_chimera_from_csv, generate_chimera_from_txt, create_solution_dict
+from src.data_gen import generate_chimera_from_csv_dwave
 from src.DIRAC import DIRAC
 from src.utils import compute_energy_nx, random_spin_flips, nx_to_pytorch
 
@@ -37,9 +37,9 @@ PATH_2048 = ROOT_DIR + "/datasets/2048/"
 PATH_2048_GROUND = GROUND_PATH + "groundstates_2048.txt"
 D_WAVE_PATH = ROOT_DIR + "/datasets/d_wave/"
 
-model = DIRAC(include_spin=True).to(device)
-model.load_state_dict(torch.load(MODEL_PATH)["model_state_dict"])
-model.eval()
+#model = DIRAC(include_spin=True).to(device)
+#model.load_state_dict(torch.load(MODEL_PATH)["model_state_dict"])
+#model.eval()
 q_values_global = None
 
 STEPS = 10
@@ -48,6 +48,7 @@ passes = 1
 
 #create_solution_dict(PATH_2048_GROUND, GROUND_PATH + "dict_2048")
 
+"""
 def select_action_policy(environment, q_values_global):
 
     state = environment.state.to(device)
@@ -68,7 +69,7 @@ def solve(nx_graph, draw=False):
     energy_path = []
     energy_path.append(min_eng)
     for _ in count():
-        # Select and perform an action
+         Select and perform an action
         action = select_action_policy(env, q_values_global) #rn.choice(env.available_actions)
         _, _, done, _ = env.step(action)
         energy = env.energy()
@@ -85,38 +86,17 @@ def solve(nx_graph, draw=False):
 
     return min_eng, graph
 
+"""
 
-
-def sim_dirac(nx_graph, iter_max, temp, temp_cut):
-    env = Chimera(nx_graph, True)
-    best = copy.deepcopy(env.chimera)
-    for i in range(iter_max):
-
-        t = temp / float(i + 1)
-        if t > temp_cut:
-            action = rn.randint(0, prop.number_of_nodes() - 1)
-            prop.nodes[action]["spin"] *= -1
-            diff = compute_energy_nx(prop) - compute_energy_nx(curr)
-            if compute_energy_nx(prop) < compute_energy_nx(curr):
-                curr = copy.deepcopy(prop)
-                if compute_energy_nx(curr) < compute_energy_nx(best):
-                    best = copy.deepcopy(curr)
-
-            elif math.exp(-diff / t) > rn.random():
-                curr = copy.deepcopy(prop)
-        else:
-            state = nx_to_pytorch(curr, True)
-            action = model(state).argmax().item()
-            curr.nodes[action]["spin"] *= -1
 
 def sim(nx_graph, iter_max, temp):
 
     curr = copy.deepcopy(nx_graph)
     best = copy.deepcopy(curr)
-    for i in range(iter_max):
+    for i in tqdm(range(iter_max)):
         prop = copy.deepcopy(curr)
         t = temp / float(i + 1)
-        action = rn.randint(0, prop.number_of_nodes()-1)
+        action = rn.choice(list(prop.nodes))
         prop.nodes[action]["spin"] *= -1
         diff = compute_energy_nx(prop) - compute_energy_nx(curr)
         if compute_energy_nx(prop) < compute_energy_nx(curr):
@@ -128,34 +108,12 @@ def sim(nx_graph, iter_max, temp):
             curr = copy.deepcopy(prop)
     return compute_energy_nx(best)
 
-df = pd.read_csv(D_WAVE_PATH + "512_1.csv", index_col=0)
 
 instance = 1
 
-spins = df["sample"][instance]
-spins = ast.literal_eval(spins)
+chimera = generate_chimera_from_csv_dwave(D_WAVE_PATH + "2048_1.csv", 1)
 
-
-external = df["h"][9]
-external = ast.literal_eval(external)
-
-edge_attr = df["J"][9]
-edge_attr = ast.literal_eval(edge_attr)
-
-energy = df["energy"][instance]
-
-chimera = dnx.chimera_graph(8,8,4)
-
-nx.set_node_attributes(chimera, external, "external")
-nx.set_node_attributes(chimera, spins, "spin")
-nx.set_edge_attributes(chimera, edge_attr, "coupling")
-
-sol = sim_dirac(chimera, 1000, 10, 0.1)
-sol2 = sim(chimera, 1000, 10)
-
-print(energy)
-print(sol)
-print(sol2)
+energy = compute_energy_nx(chimera)
 
 #with open(GROUND_PATH + "dict_2048", 'rb') as f:
 #    solution_dict = pickle.load(f)
@@ -163,10 +121,10 @@ print(sol2)
 #chimera = generate_solved_chimera_from_csv(PATH_2048 + "002.txt", solution_dict, 2)
 
 
-#solution, grAPH = solve(chimera)
+solution = sim(chimera,1000, 10)
 
-#print(solution)
-#print(energy)
+print(solution)
+print(energy)
 
 """
 with open(GROUND_PATH + "dict_2048", 'rb') as f:
