@@ -37,7 +37,7 @@ class Chimera(gym.Env):
     def step(self, action: int):
 
         assert self.action_space.contains(action), "Invalid Action"
-
+        assert action in self.available_actions
         done = False
         info = action
         old_state = deepcopy(self.chimera)

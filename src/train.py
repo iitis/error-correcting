@@ -16,7 +16,7 @@ from copy import deepcopy
 from src.environment import RandomChimera, Chimera
 from src.utils import TransitionMemory, n_step_transition, compute_energy_nx, nx_to_pytorch
 from src.DIRAC import DIRAC
-from src.data_gen import generate_chimera
+from src.data_gen import generate_chimera, generate_chimera_from_csv_dwave
 from itertools import count
 from tqdm import tqdm
 from torch_geometric.data import Batch
@@ -30,25 +30,23 @@ from collections import deque
 # Cuda devices
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 world_size = torch.cuda.device_count()
-print('Let\'s use', world_size, 'GPUs!')
+#print('Let\'s use', world_size, 'GPUs!')
 
 # Global constants
 ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
-PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/models/model_C3_v2.pt"
-CHECKPOINT_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/models/model_checkpoint.pt"
-VAL_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/chimera_512.pkl"
-DATA_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/random_C2_trajectory1.pkl"
-BEST_VALUES_PATH = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/chimera_512_checkpoint.pkl"
+MODEL_PATH = ROOT_DIR + "/models/model_C3_v3.pt"
+CHECKPOINT_PATH = ROOT_DIR + "/models/model_checkpoint.pt"
+D_WAVE_PATH = ROOT_DIR + "/datasets/d_wave/"
 
 BATCH_SIZE = 64
 GAMMA = 0.999
 EPS_START = 1.0
 EPS_END = 0.05
-NUM_EPISODES = 50000
+NUM_EPISODES = 100000
 EPS_DECAY = int(NUM_EPISODES * 0.20)
 TARGET_UPDATE = 10
 N = 10
-CHECKPOINT = True
+CHECKPOINT = False
 INCLUDE_SPIN = True
 
 # Models and optimizer
@@ -70,8 +68,7 @@ if CHECKPOINT:
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
     episode_checkpoint = checkpoint["episode"]
-    val_instance = checkpoint['val_instance']
-    validation_score = inf #checkpoint['val_score']
+    validation_score = checkpoint['val_score']
 
 else:
     episode_checkpoint = -1
@@ -90,8 +87,14 @@ def generate_val_set(num):
         elements.append(graph)
     return elements
 
-def generate_val_set_hard(directory, num):
-    pass
+def generate_val_set_hard(path, num):
+    elements = []
+    for i in range(1, num+1):
+        name = f"2048_{i}.csv"
+        for j in [1,90]:
+            graph = generate_chimera_from_csv_dwave(D_WAVE_PATH+name, j)
+            elements.append(graph)
+    return elements
 
 def select_action_epsilon_greedy(environment, steps_done):
 
@@ -170,6 +173,12 @@ def optimize_model(t_max):
 
 if __name__ == "__main__":
 
+    val_set = checkpoint['val_set'] if CHECKPOINT else generate_val_set(10)
+    val_set_hard = checkpoint['val_set_hard'] if CHECKPOINT else generate_val_set_hard(D_WAVE_PATH, 5)
+
+    val_q_list= []
+    val_hard_q_list = []
+
     env = RandomChimera(3, 3, include_spin=INCLUDE_SPIN)
 
     for episode in tqdm(range(NUM_EPISODES), leave=None, desc="episodes"):
@@ -219,18 +228,33 @@ if __name__ == "__main__":
 
         if episode % TARGET_UPDATE == 0:
             target_net.load_state_dict(policy_net.state_dict())
+            val_q = validate(val_set)
+            val_q_list.append(val_q)
+            val_hard_q = validate(val_set_hard)
+            val_hard_q_list.append(val_hard_q)
+
+        if episode % 10 == 0:
+            x =  np.arange((episode/TARGET_UPDATE) + 1)
+            print(x)
+            y1 = val_q_list
+            y2 = val_hard_q_list
+            print(y1, y2)
+            plt.plot(x,y1,x,y2)
+            plt.show()
 
         if sum_loss < validation_score:
             validation_score = sum_loss
             print(validation_score)
             torch.save({
                 'episode': episode,
-                'model_state_dict': policy_net.state_dict()}, PATH)
+                'model_state_dict': policy_net.state_dict()}, MODEL_PATH)
+
 
 
         torch.save({
             'episode': episode,
-            'val_instance': val_instance,
+            'val_set': val_set,
+            'val_set_hard': val_set_hard,
             'val_score' : validation_score,
             'model_state_dict': policy_net.state_dict(),
             'optimizer_state_dict': optimizer.state_dict()}, CHECKPOINT_PATH)

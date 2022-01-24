@@ -158,4 +158,7 @@ def generate_chimera_from_csv_dwave(path_to_csv, pos):
 
     nx.set_edge_attributes(graph, edge_attr, "coupling")
 
+    ch = dnx.chimera_graph(16,16,4)
+    chimera_index = nx.get_node_attributes(ch, "chimera_index")
+    nx.set_node_attributes(graph, chimera_index, "chimera_index")
     return graph
