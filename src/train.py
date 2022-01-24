@@ -235,11 +235,11 @@ if __name__ == "__main__":
 
         if episode % 10 == 0:
             x =  np.arange((episode/TARGET_UPDATE) + 1)
-            print(x)
             y1 = val_q_list
             y2 = val_hard_q_list
-            print(y1, y2)
-            plt.plot(x,y1,x,y2)
+            plt.plot(x, y1, "-b", label="normal")
+            plt.plot(x, y2, "-r", label="hard")
+            plt.legend(loc="upper left")
             plt.show()
 
         if sum_loss < validation_score:
