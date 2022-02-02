@@ -52,8 +52,9 @@ class SGNN(nn.Module):
         state_embedding = torch.sum(action_embedding, dim=0)  # [1, 6]
         # add virtual empty first dimensions (in pytorch size [1,6] is just [6])
         state_embedding = state_embedding[None, :]
-        state_embedding = state_embedding.repeat(x.size()[0], 1)  # change od dimensions to later concatenate
-
+        N = x.size()[0]
+        # change od dimensions to later concatenate. Repeat N times along Y axis and once along X axis (so we got [N,6])
+        state_embedding = state_embedding.repeat(N, 1)
         output = torch.cat((state_embedding, action_embedding), dim=1)  # [N, 12]
 
         return output
@@ -208,7 +209,9 @@ class SGNNMaxPool(nn.Module):
         state_embedding = torch.sum(action_embedding, dim=0)  # [1, 6]
         # add virtual empty first dimensions (in pytorch size [1,6] is just [6])
         state_embedding = state_embedding[None, :]
-        state_embedding = state_embedding.repeat(x.size()[0], 1)  # change od dimensions to later concatenate
+        N = x.size()[0]
+        # change od dimensions to later concatenate. Repeat N times along Y axis and once along X axis (so we got [N,6])
+        state_embedding = state_embedding.repeat(N, 1)  # change od dimensions to later concatenate
 
         output = torch.cat((state_embedding, action_embedding), dim=1)  # [N, 12]
 
