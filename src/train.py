@@ -77,7 +77,7 @@ else:
 # Global variables
 steps_done = 0
 
-memory = TransitionMemory(300000)  # n-step transition, will have aprox. 70 GB size
+memory = TransitionMemory(240000)  # n-step transition, will have aprox. 70 GB size
 q_values_global = None
 
 def generate_val_set(num):
@@ -233,7 +233,7 @@ if __name__ == "__main__":
             val_hard_q = validate(val_set_hard)
             val_hard_q_list.append(val_hard_q)
 
-        if episode % 10 == 0:
+        if episode % 1000 == 0:
             x =  np.arange((episode/TARGET_UPDATE) + 1)
             y1 = val_q_list
             y2 = val_hard_q_list
