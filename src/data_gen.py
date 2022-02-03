@@ -54,10 +54,6 @@ def generate_chimera(n, m, distribution="normal", params=None, spin_conf="random
     :return:
     """
 
-    assert distribution in ["normal", "uniform"], "distribution must be \"normal\" or \"uniform\""
-    assert spin_conf in ["all_up", "all_down",
-                         "random"], "spin configuration must be \"all_up\", \"all_down\" or \"random\""
-
     g = dnx.chimera_graph(n, m, 4)
 
     # create couplings
