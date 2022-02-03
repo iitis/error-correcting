@@ -2,7 +2,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.nn.init as init
 
+from torch import Tensor, LongTensor
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -116,7 +118,7 @@ class DIRAC(nn.Module):
 
 class EdgeCentric(nn.Module):
 
-    def __init__(self, in_channels_x, out_channels_x, in_channels_e, out_channels_e):
+    def __init__(self, in_channels_x: int, out_channels_x: int, in_channels_e: int, out_channels_e: int) -> None:
         super(EdgeCentric, self).__init__()
 
         self.fcx = nn.Linear(in_channels_x, out_channels_x)
@@ -134,7 +136,7 @@ class EdgeCentric(nn.Module):
 
 
 class NodeCentric(nn.Module):
-    def __init__(self, in_channels_x, out_channels_x, in_channels_e, out_channels_e):
+    def __init__(self, in_channels_x: int, out_channels_x: int, in_channels_e: int, out_channels_e: int) -> None:
         super(NodeCentric, self).__init__()
 
         self.fcx = nn.Linear(in_channels_x, out_channels_x)
@@ -153,7 +155,7 @@ class NodeCentric(nn.Module):
 
 class SGNNMaxPool(nn.Module):
 
-    def __init__(self, include_spin=False):
+    def __init__(self, include_spin: bool = False):
         super(SGNNMaxPool, self).__init__()
 
         self.max_pool = nn.MaxPool1d(3)
@@ -188,7 +190,7 @@ class SGNNMaxPool(nn.Module):
         self.node5 = NodeCentric(10, 3, 6, 3)  # Node 10->6
 
 
-    def forward(self, x, edge_index, edge_attr):
+    def forward(self, x: Tensor, edge_index: LongTensor, edge_attr: Tensor) -> Tensor:
 
         edge_attr = self.max_pool(F.relu(self.edge1(x, edge_index, edge_attr)))
         x = self.max_pool(F.relu(self.node1(x, edge_index, edge_attr)))
