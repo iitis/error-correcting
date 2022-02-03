@@ -1,4 +1,5 @@
 import torch
+import gym
 import math
 import os
 import csv
@@ -25,60 +26,124 @@ from torch_geometric.nn import DataParallel
 from statistics import mean
 from math import inf
 from collections import deque
+from dataclasses import dataclass
+from typing import List
 
 
-# Cuda devices
-device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-world_size = torch.cuda.device_count()
-#print('Let\'s use', world_size, 'GPUs!')
+@dataclass
+class BaseTrainer:
+    """Used for initialisation of all parameters"""
 
-# Global constants
-ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
-MODEL_PATH = ROOT_DIR + "/models/model_C3_v3.pt"
-CHECKPOINT_PATH = ROOT_DIR + "/models/model_checkpoint.pt"
-D_WAVE_PATH = ROOT_DIR + "/datasets/d_wave/"
+    # Cuda devices
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    world_size: int = torch.cuda.device_count()
 
-BATCH_SIZE = 64
-GAMMA = 0.999
-EPS_START = 1.0
-EPS_END = 0.05
-NUM_EPISODES = 100000
-EPS_DECAY = int(NUM_EPISODES * 0.20)
-TARGET_UPDATE = 10
-N = 10
-CHECKPOINT = False
-INCLUDE_SPIN = True
+    # Default paths
+    root_dir = Path.cwd().parent
+    model_path = root_dir / "models" / "model_C3_v3.pt"
+    checkpoint_path = root_dir / "models" / "model_checkpoint.pt"
+    dwave_path = root_dir / "datasets" / "d_wave"
 
-# Models and optimizer
-policy_net = DIRAC(include_spin=INCLUDE_SPIN)
-target_net = DIRAC(include_spin=INCLUDE_SPIN)
-target_net.load_state_dict(policy_net.state_dict())
-#policy_net = DataParallel(policy_net)
-#target_net = DataParallel(target_net)
-policy_net = policy_net.to(device)
-target_net = target_net.to(device)
-target_net.eval()
-optimizer = optim.RMSprop(policy_net.parameters())
+    # Default parameters values
+    batch_size: int = 64
+    gamma: float = 0.999
+    eps_start: float = 1.0
+    eps_end: float = 0.05
+    num_episodes: int = 2000
+    eps_decay: int = int(num_episodes * 0.20)
+    include_spin: bool = True
+    episode_checkpoint: int = -1
+    validation_score: float = inf
 
-if CHECKPOINT:
-    print("Loading checkpoint")
-    checkpoint = torch.load(CHECKPOINT_PATH)
-    policy_net.load_state_dict(checkpoint['model_state_dict'])
-    target_net.load_state_dict(checkpoint['model_state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
-    episode_checkpoint = checkpoint["episode"]
-    validation_score = checkpoint['val_score']
+    # Default network
+    policy_net = DIRAC(include_spin=include_spin)
+    target_net = DIRAC(include_spin=include_spin)
+    target_net.load_state_dict(policy_net.state_dict())
+    optimizer = optim.RMSprop(policy_net.parameters())
 
-else:
-    episode_checkpoint = -1
-    validation_score = inf
+    # Device setup
+    policy_net = policy_net.to(device)
+    target_net = target_net.to(device)
+    target_net.eval()
 
-# Global variables
-steps_done = 0
+    def load_checkpoint(self, path = None) -> None:
+        print("Loading checkpoint")
+        checkpoint = torch.load(self.checkpoint_path) if path is None else torch.load(path)
+        self.policy_net.load_state_dict(checkpoint['model_state_dict'])
+        self.target_net.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
-memory = TransitionMemory(240000)  # n-step transition, will have aprox. 70 GB size
-q_values_global = None
+        self.episode_checkpoint = checkpoint["episode"]
+        self.validation_score = checkpoint['validation_score']
+
+    def save_checkpoint(self, path = None) -> None:
+        save_path = self.checkpoint_path if path is None else path
+        torch.save({
+            'episode': self.episode,
+            'validation_score': self.validation_score,
+            'model_state_dict': self.policy_net.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict()}, save_path)
+
+    def change_optimiser(self, optimizer: optim.Optimizer) -> None: # Don't know if it is needed
+        self.optimizer = optimizer
+
+
+class DQNTrainer(BaseTrainer):
+    def __init__(self, env: Chimera):
+        super(DQNTrainer, self).__init__()
+        # Maybe memory parameters could be user-specified
+        self.trajectory = deque([], maxlen=1000)
+        self.replay_buffer = TransitionMemory(240000)  # n-step transition, will have aprox. 70 GB size
+        self.steps_done: int = 0
+
+        self.env = env
+        self.q_actions = None
+
+    def reset_trajectory(self) -> None:
+        self.trajectory = deque([], maxlen=1000)
+
+    def compute_q_values(self) -> None:
+        state = self.env.state.to(self.device)
+        with torch.no_grad():
+            # Here choice really depends on INCLUDE_SPIN, if True then q_values_global is None
+            q_values = self.policy_net(state)
+            self.q_actions = torch.argsort(q_values, descending=True).tolist()
+
+
+    def select_action_policy(self) -> int:
+
+        for action in self.q_actions:
+            if action in self.env.available_actions:
+                return action
+
+        if not self.env.available_actions:
+            raise ValueError("No more available actions")
+
+    def select_action_epsilon_greedy(self) -> int:
+        sample = rn.random()
+        eps_threshold = self.eps_end + (self.eps_start - self.eps_end) * math.exp(-1. * self.steps_done / self.eps_decay)  # epsilon decay
+
+        if sample > eps_threshold:
+            return self.select_action_policy()
+        else:
+            return rn.choice(self.env.available_actions)
+
+    def collect_trajectories(self) -> None:
+        for _ in count():
+            # Select and perform an action
+            state = self.env.state.to(self.device)
+            action = self.select_action_epsilon_greedy()
+            _, reward, done, _ = self.env.step(action)
+
+            # Store the transition in memory
+            self.trajectory.append([state, action, reward])
+            if done:  # it is done when model performs final spin flip
+                break
+
+    def validate(self) -> float:
+        return 0.0
+"""
 
 def generate_val_set(num):
     elements = []
@@ -127,8 +192,6 @@ def validate(val_set):
         state = nx_to_pytorch(element, True).to(device)
         s += policy_net(state).max().item()
     return s/len(val_set)
-
-
 
 
 
@@ -208,7 +271,6 @@ if __name__ == "__main__":
             # Store the transition in memory
             trajectory.append([state, action, reward])
 
-
             if done:  # it is done when model performs final spin flip
                 break
         # Get n-step sum of rewards and and predicted rewards
@@ -250,12 +312,4 @@ if __name__ == "__main__":
                 'model_state_dict': policy_net.state_dict()}, MODEL_PATH)
 
 
-
-        torch.save({
-            'episode': episode,
-            'val_set': val_set,
-            'val_set_hard': val_set_hard,
-            'val_score' : validation_score,
-            'model_state_dict': policy_net.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict()}, CHECKPOINT_PATH)
-
+"""
