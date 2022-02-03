@@ -77,10 +77,10 @@ class BaseTrainer:
         self.episode_checkpoint = checkpoint["episode"]
         self.validation_score = checkpoint['validation_score']
 
-    def save_checkpoint(self, path = None) -> None:
+    def save_checkpoint(self, episode: int, path=None) -> None:
         save_path = self.checkpoint_path if path is None else path
         torch.save({
-            'episode': self.episode,
+            'episode': episode,
             'validation_score': self.validation_score,
             'model_state_dict': self.policy_net.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict()}, save_path)
@@ -110,9 +110,7 @@ class DQNTrainer(BaseTrainer):
             q_values = self.policy_net(state)
             self.q_actions = torch.argsort(q_values, descending=True).tolist()
 
-
     def select_action_policy(self) -> int:
-
         for action in self.q_actions:
             if action in self.env.available_actions:
                 return action
@@ -129,20 +127,36 @@ class DQNTrainer(BaseTrainer):
         else:
             return rn.choice(self.env.available_actions)
 
-    def collect_trajectories(self) -> None:
-        for _ in count():
-            # Select and perform an action
-            state = self.env.state.to(self.device)
-            action = self.select_action_epsilon_greedy()
-            _, reward, done, _ = self.env.step(action)
-
-            # Store the transition in memory
-            self.trajectory.append([state, action, reward])
-            if done:  # it is done when model performs final spin flip
-                break
-
     def validate(self) -> float:
         return 0.0
+
+    def fit(self):
+        for episode in tqdm(range(self.num_episodes), leave=None, desc="episodes"):
+
+            # Bring steps_done in line with checkpoint
+            if episode < self.episode_checkpoint:
+                self.steps_done += 1
+                continue
+
+            # Reset environment end trajectories
+            self.env.reset()
+            self.reset_trajectory()
+
+            # Perform steps of algorithm
+            for _ in count():
+                # Select and perform an action
+                state = self.env.state.to(self.device)
+                action = self.select_action_epsilon_greedy()
+                _, reward, done, _ = self.env.step(action)
+
+                # Store the transition in memory
+                self.trajectory.append([state, action, reward])
+                if done:  # it is done when model performs final spin flip
+                    break
+
+
+
+
 """
 
 def generate_val_set(num):
