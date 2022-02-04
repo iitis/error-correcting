@@ -70,23 +70,34 @@ class DIRAC(nn.Module):
         self.encoder = SGNNMaxPool(include_spin=include_spin)
         #self.encoder = nn.DataParallel(self.encoder)
 
-        self.fc1 = nn.Linear(12, 36)
-        self.fc2 = nn.Linear(36, 100)
-        self.fc3 = nn.Linear(100, 100)
+        self.fc1 = nn.Linear(12, 48)
+        init.xavier_normal_(self.fc1.weight, gain=init.calculate_gain('relu'))
+
+        self.fc2 = nn.Linear(48, 152)
+        init.xavier_normal_(self.fc2.weight, gain=init.calculate_gain('relu'))
+
+        self.fc3 = nn.Linear(152, 100)
+        init.xavier_normal_(self.fc3.weight, gain=init.calculate_gain('relu'))
+
         self.fc4 = nn.Linear(100, 25)
+        init.xavier_normal_(self.fc4.weight, gain=init.calculate_gain('relu'))
+
         self.fc5 = nn.Linear(25, 1)
+        init.xavier_normal_(self.fc5.weight, gain=init.calculate_gain('leaky_relu', 0.2))
 
     def forward(self, batch):
         # output should have size [1, N] (Q-values)
 
         state_action_embedding = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
-        Q = state_action_embedding  # change matrix [N+1, 6] into vector
+        Q = state_action_embedding
         Q = F.relu(self.fc1(Q))
         Q = F.relu(self.fc2(Q))
         Q = F.relu(self.fc3(Q))
         Q = F.relu(self.fc4(Q))
-        Q = F.leaky_relu(self.fc5(Q), 0.1)
-        return Q.reshape(-1)
+        Q = F.leaky_relu(self.fc5(Q), 0.2)
+        return Q.reshape(-1) # vector [1,N]
+
+
 """
 class DIRAC(nn.Module):
 
@@ -218,6 +229,5 @@ class SGNNMaxPool(nn.Module):
         output = torch.cat((state_embedding, action_embedding), dim=1)  # [N, 12]
 
         return output
-
 
 
