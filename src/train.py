@@ -40,7 +40,7 @@ class BaseTrainer:
 
     # Default paths
     root_dir = Path.cwd().parent
-    model_path = root_dir / "models" / "model_C3_v3.pt"
+    model_path = root_dir / "models" / "model_C3_v4.pt"
     checkpoint_path = root_dir / "models" / "model_checkpoint.pt"
     dwave_path = root_dir / "datasets" / "d_wave"
 
@@ -130,6 +130,9 @@ class DQNTrainer(BaseTrainer):
     def validate(self) -> float:
         return 0.0
 
+    def optimization_step(self):
+        pass
+
     def fit(self):
         for episode in tqdm(range(self.num_episodes), leave=None, desc="episodes"):
 
@@ -151,9 +154,24 @@ class DQNTrainer(BaseTrainer):
 
                 # Store the transition in memory
                 self.trajectory.append([state, action, reward])
-                if done:  # it is done when model performs final spin flip
+
+                # Perform one step of optimisation
+                self.optimization_step()
+                # it is done when model performs final spin flip
+                if done:
                     break
 
+            # Update memory buffer with n_step rewards
+            terminal_state_t = len(self.trajectory)
+            reward_n = 0
+            for t in range(terminal_state_t-1, 0):
+                reward_n = self.gamma * reward_n + self.trajectory[t][2]
+                # state, action reward_n
+                self.replay_buffer.push(self.trajectory[t][0].to("cpu"), self.trajectory[t][1], reward_n)
+
+            # increase steps done
+            self. steps_done += 1
+            self.save_checkpoint(episode)
 
 
 
