@@ -142,8 +142,9 @@ class EdgeCentric(nn.Module):
         x = x_i + x_j
         x = self.fcx(x)
         edge_attr = self.fce(edge_attr)
-
-        return torch.cat((x, edge_attr), dim=1)
+        output = torch.cat((x, edge_attr), dim=1)
+        output = F.relu(output)
+        return output
 
 
 class NodeCentric(nn.Module):
@@ -160,8 +161,9 @@ class NodeCentric(nn.Module):
         adj = torch.sum(adj, dim=1)
         x = self.fcx(x)
         edge_attr = self.fce(adj)
-
-        return torch.cat((x, edge_attr), dim=1)
+        output = torch.cat((x, edge_attr), dim=1)
+        output = F.relu(output)
+        return output
 
 
 class SGNNMaxPool(nn.Module):
