@@ -13,8 +13,9 @@ from numpy.random import default_rng
 rng = default_rng()  # This is recomended in numpy documentation
 
 
-def generate_couplings(graph, distribution="normal", params=None):
-    assert distribution in ["normal", "uniform"], "distribution must be \"normal\" or \"uniform\""
+def generate_couplings(graph: nx.Graph, distribution: str = "normal", params=None) -> dict:
+    if distribution not in ["normal", "uniform"]:
+        raise ValueError("distribution must be \"normal\" or \"uniform\"")
 
     if distribution == "normal":
         if params is None:
@@ -29,9 +30,9 @@ def generate_couplings(graph, distribution="normal", params=None):
     return edge_attr, external
 
 
-def generate_spin_conf(graph, spin_conf = "random"):
-    assert spin_conf in ["all_up", "all_down",
-                         "random"], "spin configuration must be \"all_up\", \"all_down\" or \"random\""
+def generate_spin_conf(graph: nx.Graph, spin_conf: str = "random"):
+    if spin_conf not in ["all_up", "all_down", "random"]:
+        raise ValueError("spin configuration must be \"all_up\", \"all_down\" or \"random\"")
 
     if spin_conf == "random":
         spins = {node: rn.choice([-1.0, 1.0]) for node in graph.nodes}
@@ -43,18 +44,43 @@ def generate_spin_conf(graph, spin_conf = "random"):
     return spins
 
 
-
-def generate_chimera(n, m, distribution="normal", params=None, spin_conf="random"):
+def normalize_chimera(n: int, m: int, t: int, g: nx.Graph) -> dict:
     """
-    :param n: Number of rows in chimera
-    :param m: Number of columns in chimera
+    assume square Chimera
+    :param n:
+    :param m:
+    :param t:
+    :param g:
+    :return:
+    """
+    ch_inx = nx.get_node_attributes(g, 'chimera_index')
+
+    if n == 1:
+        chimera_index = {
+            node: (ch_inx[node][0], ch_inx[node][1], ch_inx[node][2], ch_inx[node][3] / (t - 1))
+            for node in g.nodes}
+    else:
+        chimera_index = {
+            node: (ch_inx[node][0] / (n - 1), ch_inx[node][1] / (m - 1), ch_inx[node][2], ch_inx[node][3] / (t - 1))
+            for node in g.nodes}
+    return chimera_index
+
+
+def generate_chimera(n: int, m: int, t: int = 4, distribution: str = "normal", params=None, spin_conf: str = "random") \
+        -> nx.Graph:
+    """
+    :param n: Number of rows in the Chimera lattice
+    :param m: Number of columns in the Chimera lattice
+    :param t: Size of the shore within each Chimera tile
     :param distribution: Chosen distribution of values
     :param params: parameters of distribution. Should be given as iterable
     :param spin_conf: spin configuration
     :return:
     """
+    if n != m:
+        raise ValueError("Right now implemented only for square lattices")
 
-    g = dnx.chimera_graph(n, m, 4)
+    g = dnx.chimera_graph(n, m, t)
 
     # create couplings
     coupling, external = generate_couplings(g, distribution=distribution, params=params)
@@ -67,6 +93,9 @@ def generate_chimera(n, m, distribution="normal", params=None, spin_conf="random
 
     set_node_attributes(g, spins, "spin")
 
+    # normalize chimera index
+    chimera_index = normalize_chimera(n, m, t, g)
+    set_node_attributes(g, chimera_index, "chimera_index")
     return g
 
 
@@ -79,8 +108,8 @@ def generate_chimera_from_txt(path, spin_conf="random"):
     """
     chimera_csv = pd.read_csv(path, skiprows=[0], sep=" ", header=None)
     num_of_nodes = max(chimera_csv[0].max(), chimera_csv[1].max())
-    num_of_cells = num_of_nodes/8
-    dim = num_of_cells ** (1/2)
+    num_of_cells = num_of_nodes / 8
+    dim = num_of_cells ** (1 / 2)
     n = int(dim)
     m = int(dim)
 
@@ -98,9 +127,9 @@ def generate_chimera_from_txt(path, spin_conf="random"):
     external = {}
     for index, row in chimera_csv.iterrows():
         if row[0] == row[1]:
-            external[row[0]-1] = row[2]
+            external[row[0] - 1] = row[2]
         else:
-            edge_attr[(row[0]-1, row[1]-1)] = row[2]
+            edge_attr[(row[0] - 1, row[1] - 1)] = row[2]
 
     set_edge_attributes(g, edge_attr, "coupling")
     set_node_attributes(g, external, "external")
@@ -109,15 +138,12 @@ def generate_chimera_from_txt(path, spin_conf="random"):
 
 
 def create_solution_dict(file, save):
-
     ground = pd.read_csv(file, delimiter=" ", header=None)
     ground.drop(1, inplace=True, axis=1)
 
-
     solution_dict = {}
     for index, row in ground.iterrows():
-
-        spins = {i-3: 1 if row[i] == 1 else -1 for i in range(3, len(row)+1)}
+        spins = {i - 3: 1 if row[i] == 1 else -1 for i in range(3, len(row) + 1)}
         sol = {"ground": row[2], "spins": spins}
         solution_dict["{}".format(index + 1)] = sol
 
@@ -126,7 +152,6 @@ def create_solution_dict(file, save):
 
 
 def generate_solved_chimera_from_txt(file, solution_dict, number):
-
     g = generate_chimera_from_txt(path=file)
 
     spins = solution_dict["{}".format(number)]["spins"]
@@ -134,6 +159,7 @@ def generate_solved_chimera_from_txt(file, solution_dict, number):
     set_node_attributes(g, spins, "spin")
 
     return g
+
 
 def generate_chimera_from_csv_dwave(path_to_csv, pos):
     df = pd.read_csv(path_to_csv, index_col=0)
@@ -154,7 +180,7 @@ def generate_chimera_from_csv_dwave(path_to_csv, pos):
 
     nx.set_edge_attributes(graph, edge_attr, "coupling")
 
-    ch = dnx.chimera_graph(16,16,4)
+    ch = dnx.chimera_graph(16, 16, 4)
     chimera_index = nx.get_node_attributes(ch, "chimera_index")
     nx.set_node_attributes(graph, chimera_index, "chimera_index")
     return graph
