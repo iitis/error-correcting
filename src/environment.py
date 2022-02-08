@@ -1,3 +1,5 @@
+import copy
+
 import gym
 import torch
 
@@ -9,6 +11,7 @@ from math import inf
 from gym import spaces
 from copy import deepcopy
 from numpy.random import default_rng
+from itertools import product
 from src.utils import compute_energy_nx,  nx_to_pytorch
 from src.data_gen import generate_chimera
 
@@ -87,6 +90,19 @@ class Chimera(gym.Env):
 
     def energy(self):
         return compute_energy_nx(self.chimera)
+
+    def brute_force(self):
+        assert self.chimera.number_of_nodes() <= 32, "size of chimera should be less or equal 32"
+        graph = copy.deepcopy(self.chimera)
+        lst = [list(i) for i in product([1, -1], repeat=graph.number_of_nodes())]
+        min_energy = inf
+        for conf in lst:
+            values = {node: conf[node] for node in graph.nodes}
+            nx.set_node_attributes(graph, values, "spin")
+            energy = compute_energy_nx(graph)
+            if energy < min_energy:
+                min_energy = energy
+        return min_energy
 
 
 class RandomChimera(Chimera):
