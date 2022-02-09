@@ -45,34 +45,31 @@ class BaseTrainer:
     dwave_path = root_dir / "datasets" / "d_wave"
 
     # Default parameters values
-    batch_size: int = 64
+    batch_size: int = 2
     gamma: float = 0.999
     eps_start: float = 1.0
     eps_end: float = 0.05
-    num_episodes: int = 1
-    eps_decay: int = 1#int(num_episodes * 0.20)
-    include_spin: bool = True
+    num_episodes: int = 100
+    eps_decay: int = int(num_episodes * 0.20)
+    include_spin: bool = False
     episode_checkpoint: int = -1
     validation_score: float = inf
 
 
     # Default network
     policy_net = DIRAC(include_spin=include_spin)
+    policy_net = policy_net.to(device)
     #target_net = DIRAC(include_spin=include_spin)
     #target_net.load_state_dict(policy_net.state_dict())
-    optimizer = optim.RMSprop(policy_net.parameters(), lr=10**-5)
-    loss_function = nn.MSELoss(reduction="none")
+    optimizer = optim.RMSprop(policy_net.parameters())
+    loss_function = nn.MSELoss()
 
-    # Device setup
-    policy_net = policy_net.to(device)
-    #target_net = target_net.to(device)
-    #target_net.eval()
 
     def load_checkpoint(self, path = None) -> None:
         print("Loading checkpoint")
         checkpoint = torch.load(self.checkpoint_path) if path is None else torch.load(path)
         self.policy_net.load_state_dict(checkpoint['model_state_dict'])
-        self.target_net.load_state_dict(checkpoint['model_state_dict'])
+        #self.target_net.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
         self.episode_checkpoint = checkpoint["episode"]
@@ -107,12 +104,11 @@ class DQNTrainer(BaseTrainer):
 
     def compute_q_values(self) -> None:
         state = self.env.state.to(self.device)
-            # Here choice really depends on INCLUDE_SPIN, if True then q_values_global is None
+
         self.q_values = self.policy_net(state)
         self.q_actions = torch.argsort(self.q_values, descending=True).tolist()
 
     def select_action_on_policy(self) -> int:
-        self.compute_q_values()
 
         for action in self.q_actions:
             if action in self.env.available_actions:
@@ -131,7 +127,19 @@ class DQNTrainer(BaseTrainer):
             return rn.choice(self.env.available_actions)
 
     def validate(self) -> float:
-        return 0.0
+        self.env.reset()
+        min_energy = inf
+        for _ in count():
+            # Select and perform an action
+            action = self.select_action_on_policy()
+            _, _, done, _ = self.env.step(action)
+            energy = self.env.energy()
+            if energy < min_energy:
+                min_energy = energy
+            # it is done when model performs final spin flip
+            if done:
+                break
+        return min_energy
 
     def optimization_step(self):
         if len(self.replay_buffer) < self.batch_size:
@@ -146,14 +154,19 @@ class DQNTrainer(BaseTrainer):
         action_batch = torch.tensor(batch.action, device=self.device)
         reward_batch = torch.tensor(batch.reward_n, device=self.device)
         state_batch = Batch.from_data_list(batch.state).to(self.device)
-
-
         # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
         # columns of actions taken. These are the actions which would've been taken
         # for each batch state according to policy_net
 
         # Compute loss
-        state_action_values = self.policy_net(state_batch).gather(0, action_batch)
+        # Reshape tensor from [batch_size] to [batch_size,1]
+        action_batch = action_batch[None, :].t()
+
+        # compute state action values for every graph in batch
+        state_action_values = self.policy_net(state_batch).reshape((self.batch_size, -1))
+
+        # gather values for chosen actions
+        state_action_values = state_action_values.gather(1, action_batch).view(-1)
 
         loss = self.loss_function(state_action_values, reward_batch)
 
@@ -162,9 +175,10 @@ class DQNTrainer(BaseTrainer):
         loss.backward()
         # gradient clipping for numerical stability (nn.utils.clip_grad_norm_())
         self.optimizer.step()
-        print(loss)
 
     def fit(self):
+        valid_list = []
+        self.policy_net.train()
         for episode in tqdm(range(self.num_episodes), leave=None, desc="episodes"):
 
             # Bring steps_done in line with checkpoint
@@ -175,7 +189,7 @@ class DQNTrainer(BaseTrainer):
             # Reset environment end trajectories
             self.env.reset()
             self.reset_trajectory()
-
+            self.compute_q_values()
             # Perform steps of algorithm
             for _ in count():
                 # Select and perform an action
@@ -195,18 +209,25 @@ class DQNTrainer(BaseTrainer):
             # Update memory buffer with n_step rewards
             terminal_state_t = len(self.trajectory)
             reward_n = 0
-            for t in range(terminal_state_t, 0):
+            for t in range(terminal_state_t-1, -1, -1):
                 reward_n = self.gamma * reward_n + self.trajectory[t][2]
                 # state, action reward_n
                 self.replay_buffer.push(self.trajectory[t][0].to("cpu"), self.trajectory[t][1], reward_n)
 
             # increase steps done
             self.steps_done += 1
+            validation_score_new = self.validate()
+            valid_list.append(validation_score_new)
+            if validation_score_new < self.validation_score:
+                self.validation_score = validation_score_new
             self.save_checkpoint(episode)
-
+        x = np.arange(self.num_episodes)
+        plt.plot(x, valid_list)
+        plt.show()
 
 if __name__ == "__main__":
-    env = Chimera(generate_chimera(1, 1), include_spin=True)
+    env = Chimera(generate_chimera(1, 1))
+    print(env.brute_force())
     model = DQNTrainer(env)
     model.fit()
 
