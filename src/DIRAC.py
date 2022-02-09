@@ -143,7 +143,6 @@ class EdgeCentric(nn.Module):
         x = self.fcx(x)
         edge_attr = self.fce(edge_attr)
         output = torch.cat((x, edge_attr), dim=1)
-        output = F.relu(output)
         return output
 
 
@@ -162,7 +161,6 @@ class NodeCentric(nn.Module):
         x = self.fcx(x)
         edge_attr = self.fce(adj)
         output = torch.cat((x, edge_attr), dim=1)
-        output = F.relu(output)
         return output
 
 
@@ -231,5 +229,42 @@ class SGNNMaxPool(nn.Module):
         output = torch.cat((state_embedding, action_embedding), dim=1)  # [N, 12]
 
         return output
+
+
+class SpinGlassNeuralNetwork(nn.Module):
+    def __init__(self):
+        super(SpinGlassNeuralNetwork, self).__init__()
+
+        self.fc1 = nn.Linear(12, 48)
+        init.xavier_uniform_(self.fc1.weight, gain=init.calculate_gain('relu'))
+
+        self.fc2 = nn.Linear(48, 152)
+        init.xavier_uniform_(self.fc2.weight, gain=init.calculate_gain('relu'))
+
+        self.fc3 = nn.Linear(152, 100)
+        init.xavier_uniform_(self.fc3.weight, gain=init.calculate_gain('relu'))
+
+        self.fc4 = nn.Linear(100, 25)
+        init.xavier_uniform_(self.fc4.weight, gain=init.calculate_gain('relu'))
+
+        self.fc5 = nn.Linear(25, 1)
+        init.xavier_normal_(self.fc5.weight, gain=init.calculate_gain('leaky_relu', 0.2))
+
+    def forward(self, batch):
+
+        Q = F.relu(self.fc1(Q))
+        Q = F.dropout(Q, p=0.5, training=self.training)
+
+        Q = F.relu(self.fc2(Q))
+        Q = F.dropout(Q, p=0.5, training=self.training)
+
+        Q = F.relu(self.fc3(Q))
+        Q = F.dropout(Q, p=0.5, training=self.training)
+
+        Q = F.leaky_relu(self.fc4(Q))
+        Q = F.dropout(Q, p=0.5, training=self.training)
+
+        Q = F.leaky_relu(self.fc5(Q), 0.2)
+        return Q.reshape(-1) # vector [N]
 
 

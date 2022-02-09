@@ -36,7 +36,6 @@ class BaseTrainer:
 
     # Cuda devices
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    world_size: int = torch.cuda.device_count()
 
     # Default paths
     root_dir = Path.cwd().parent
@@ -125,6 +124,9 @@ class DQNTrainer(BaseTrainer):
             return self.select_action_on_policy()
         else:
             return rn.choice(self.env.available_actions)
+
+    def update_replay_buffer(self):
+        pass
 
     def validate(self) -> float:
         self.env.reset()
@@ -225,6 +227,7 @@ class DQNTrainer(BaseTrainer):
         plt.plot(x, valid_list)
         plt.show()
 
+
 if __name__ == "__main__":
     env = Chimera(generate_chimera(1, 1))
     print(env.brute_force())
@@ -232,148 +235,10 @@ if __name__ == "__main__":
     model.fit()
 
 """
-
-def generate_val_set(num):
-    elements = []
-    for _ in range(num):
-        graph = generate_chimera(16, 16)
-        elements.append(graph)
-    return elements
-
-def generate_val_set_hard(path, num):
-    elements = []
-    for i in range(1, num+1):
-        name = f"2048_{i}.csv"
-        for j in [1,90]:
-            graph = generate_chimera_from_csv_dwave(D_WAVE_PATH+name, j)
-            elements.append(graph)
-    return elements
-
-
-def validate(val_set):
-    s = 0
-    for element in val_set:
-        state = nx_to_pytorch(element, True).to(device)
-        s += policy_net(state).max().item()
-    return s/len(val_set)
-
-
-
-def optimize_model(t_max):
-    if len(memory) < BATCH_SIZE:
-        return inf
-    sum_loss = 0
-
-    for _ in range(t_max):
-        transitions = memory.sample(BATCH_SIZE)
-        # Transpose the batch (see https://stackoverflow.com/a/19343/3343043 for
-        # detailed explanation). This converts batch-array of Transitions
-        # to Transition of batch-arrays.
-        batch = n_step_transition(*zip(*transitions))
-
-        action_batch = torch.tensor(batch.action, device=device)
-        reward_batch = torch.tensor(batch.reward_n, device=device)
-        state_batch = Batch.from_data_list(batch.state).to(device)
-        stop_states = Batch.from_data_list(batch.state_n).to(device)
-
-        # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
-        # columns of actions taken. These are the actions which would've been taken
-        # for each batch state according to policy_net
-
-        # Compute loss
-        expected_state_action_values = target_net(stop_states).max() * GAMMA + reward_batch
-        state_action_values = policy_net(state_batch).gather(0, action_batch)
-
-        criterion = nn.MSELoss()
-        loss = criterion(state_action_values, expected_state_action_values)
-        sum_loss += loss
-        # Optimize the model
-
-        optimizer.zero_grad()
-        loss.backward()
-        for param in policy_net.parameters():
-            param.grad.data.clamp_(-1, 1)  # gradient clipping for numerical stability
-        optimizer.step()
-
-    return sum_loss
-
-
-if __name__ == "__main__":
-
-    val_set = checkpoint['val_set'] if CHECKPOINT else generate_val_set(10)
-    val_set_hard = checkpoint['val_set_hard'] if CHECKPOINT else generate_val_set_hard(D_WAVE_PATH, 5)
-
-    val_q_list= []
-    val_hard_q_list = []
-
-    env = RandomChimera(3, 3, include_spin=INCLUDE_SPIN)
-
-    for episode in tqdm(range(NUM_EPISODES), leave=None, desc="episodes"):
-
-        if episode < episode_checkpoint:
-            steps_done += 1
-            continue
-
-        # Initialize the environment and state
-        env.reset()
-        trajectory = deque([], maxlen=1000)
-
-        # Initialize if we include spin or not
-        if INCLUDE_SPIN:
-            q_values_global = None
-        else:
-            with torch.no_grad():
-                q_values_global = policy_net(env.state.to(device))
-
-        # Perform actions
-        for t in count():
-            # Select and perform an action
-            state = env.state.to(device)
-            action = select_action_epsilon_greedy(env, steps_done)
-            _, reward, done, _ = env.step(action)
-
-            # Store the transition in memory
-            trajectory.append([state, action, reward])
-
-            if done:  # it is done when model performs final spin flip
-                break
-        # Get n-step sum of rewards and and predicted rewards
-
-        # Perform one step of the optimization (on the policy network)
-        sum_loss = optimize_model(env.action_space.n)  # one iteration for every move
-
-
-        for t in range(len(trajectory)):
-            # state, action reward_n, state_n
-            stop = t + N if len(trajectory) - t > N else len(trajectory)-1
-            reward_n = 0
-            for k in range(t, stop + 1):
-                reward_n += GAMMA * trajectory[k][2]
-            memory.push(trajectory[t][0].to("cpu"), trajectory[t][1], reward_n, trajectory[stop][0].to("cpu"))
-        steps_done += 1
-
-        if episode % TARGET_UPDATE == 0:
-            target_net.load_state_dict(policy_net.state_dict())
-            val_q = validate(val_set)
-            val_q_list.append(val_q)
-            val_hard_q = validate(val_set_hard)
-            val_hard_q_list.append(val_hard_q)
-
-        if episode % 1000 == 0:
-            x =  np.arange((episode/TARGET_UPDATE) + 1)
-            y1 = val_q_list
-            y2 = val_hard_q_list
-            plt.plot(x, y1, "-b", label="normal")
-            plt.plot(x, y2, "-r", label="hard")
-            plt.legend(loc="upper left")
-            plt.show()
-
         if sum_loss < validation_score:
             validation_score = sum_loss
             print(validation_score)
             torch.save({
                 'episode': episode,
                 'model_state_dict': policy_net.state_dict()}, MODEL_PATH)
-
-
 """
