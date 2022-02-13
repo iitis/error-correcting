@@ -44,15 +44,16 @@ class BaseTrainer:
     dwave_path = root_dir / "datasets" / "d_wave"
 
     # Default parameters values
-    batch_size: int = 2
+    batch_size: int = 64
     gamma: float = 0.999
     eps_start: float = 1.0
     eps_end: float = 0.05
-    num_episodes: int = 100
+    num_episodes: int = 2000
     eps_decay: int = int(num_episodes * 0.20)
     include_spin: bool = False
     episode_checkpoint: int = -1
     validation_score: float = inf
+    validation_update: int = 10
 
 
     # Default network
@@ -60,7 +61,7 @@ class BaseTrainer:
     policy_net = policy_net.to(device)
     #target_net = DIRAC(include_spin=include_spin)
     #target_net.load_state_dict(policy_net.state_dict())
-    optimizer = optim.RMSprop(policy_net.parameters())
+    optimizer = optim.RMSprop(policy_net.parameters(), lr=0.0005, weight_decay=0.002)
     loss_function = nn.MSELoss()
 
 
@@ -82,6 +83,12 @@ class BaseTrainer:
             'model_state_dict': self.policy_net.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict()}, save_path)
 
+    def save_model(self, episode: int, path=None) -> None:
+        save_path = self.model_path if path is None else path
+        torch.save({
+            'episode': episode,
+            'model_state_dict': self.policy_net.state_dict()}, save_path)
+
     def change_optimiser(self, optimizer: optim.Optimizer) -> None:   # Don't know if it is needed
         self.optimizer = optimizer
 
@@ -95,26 +102,28 @@ class DQNTrainer(BaseTrainer):
         self.steps_done: int = 0
 
         self.env = env
+        self.val_env = Chimera(generate_chimera(1, 1))  # to change
         self.q_actions = None
         self.q_values = None
 
     def reset_trajectory(self) -> None:
         self.trajectory = deque([], maxlen=1000)
 
-    def compute_q_values(self) -> None:
-        state = self.env.state.to(self.device)
+    def compute_q_values(self, validate: bool = False) -> None:
+        state = self.env.state.to(self.device) if not validate else self.val_env.state.to(self.device)
 
         self.q_values = self.policy_net(state)
         self.q_actions = torch.argsort(self.q_values, descending=True).tolist()
 
-    def select_action_on_policy(self) -> int:
+    def select_action_on_policy(self, validate: bool = False) -> int:
 
         for action in self.q_actions:
-            if action in self.env.available_actions:
-                return action
-
-        if not self.env.available_actions:
-            raise ValueError("No more available actions")
+            if not validate:
+                if action in self.env.available_actions:
+                    return action
+            else:
+                if action in self.val_env.available_actions:
+                    return action
 
     def select_action_epsilon_greedy(self) -> int:
         sample = rn.random()
@@ -129,13 +138,15 @@ class DQNTrainer(BaseTrainer):
         pass
 
     def validate(self) -> float:
-        self.env.reset()
+        self.policy_net.eval()
+        self.val_env.reset()
+        self.compute_q_values(validate=True)
         min_energy = inf
         for _ in count():
             # Select and perform an action
-            action = self.select_action_on_policy()
-            _, _, done, _ = self.env.step(action)
-            energy = self.env.energy()
+            action = self.select_action_on_policy(validate=True)
+            _, _, done, _ = self.val_env.step(action)
+            energy = self.val_env.energy()
             if energy < min_energy:
                 min_energy = energy
             # it is done when model performs final spin flip
@@ -180,6 +191,7 @@ class DQNTrainer(BaseTrainer):
 
     def fit(self):
         valid_list = []
+        self.val_env.brute_force()
         self.policy_net.train()
         for episode in tqdm(range(self.num_episodes), leave=None, desc="episodes"):
 
@@ -218,18 +230,21 @@ class DQNTrainer(BaseTrainer):
 
             # increase steps done
             self.steps_done += 1
-            validation_score_new = self.validate()
-            valid_list.append(validation_score_new)
-            if validation_score_new < self.validation_score:
-                self.validation_score = validation_score_new
+            if episode % self.validation_update == 0:
+                validation_score_new = self.validate()
+                valid_list.append(validation_score_new)
+                if validation_score_new < self.validation_score:
+                    self.validation_score = validation_score_new
+                    self.save_model(episode)
             self.save_checkpoint(episode)
-        x = np.arange(self.num_episodes)
+        x = np.arange(int(self.num_episodes/self.validation_update))
         plt.plot(x, valid_list)
         plt.show()
+        print(self.validation_score)
 
 
 if __name__ == "__main__":
-    env = Chimera(generate_chimera(1, 1))
+    env = RandomChimera(1, 1)
     print(env.brute_force())
     model = DQNTrainer(env)
     model.fit()
