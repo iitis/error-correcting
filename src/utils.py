@@ -6,61 +6,40 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import random as rn
 
+from torch_geometric.data import Data
 from torch_geometric.utils import to_networkx, from_networkx
 from collections import namedtuple, deque
 
 
-def plot_graph(graph, attributes=True):
+def plot_graph(graph: nx.Graph, attributes: bool = True) -> None:
     """
     Draws graph. For spin up, node is white, for spin down node is black. Red edge denotes negative
     coupling strength, blue positive.
     :param graph: torch_geometric Data object
     :param attributes: bool, if true then it includes edges and nodes features.
     """
-    if attributes:
-        node_attrs = graph.x.tolist()
-        node_color = []
-        for attr in node_attrs:
-            if attr == [1.0]:
-                node_color.append("white")
-            else:
-                node_color.append("black")
-        edge_attr = graph.edge_attr.tolist()
-        edge_attr = [item for sublist in edge_attr for item in sublist]
-        edge_attr = set(edge_attr)  # prob that two distinct edges will have the same value is 0
-        edge_color = []
-        for attr in edge_attr:
-            if attr >= 0:
-                edge_color.append("blue")
-            else:
-                edge_color.append("red")
-        g = to_networkx(graph, to_undirected=True)
-        nx.draw(g, node_color=node_color, edgecolors="black", edge_color=edge_color)
-
-    else:
-        g = to_networkx(graph, to_undirected=True)
-        nx.draw(g)
-
-    plt.show()
+    raise NotImplementedError()
 
 
-def compute_energy_nx(nx_graph):
-    graph = nx_graph.copy()
+def compute_energy_nx(graph: nx.Graph) -> float:
+    g = copy.deepcopy(graph)
 
-    spins = nx.get_node_attributes(graph, "spin")
-    external = nx.get_node_attributes(graph, "external")
+    spins = nx.get_node_attributes(g, "spin")
+    external = nx.get_node_attributes(g, "external")
+    couplings = nx.get_edge_attributes(g, "coupling")
 
     s = 0
-    for i, j, data in graph.edges(data=True):
-        s += data["coupling"] * spins[i] * spins[j]
-    for i in spins.keys():
-        s += spins[i] * external[i]
+    for i, j in couplings:
+        s += couplings[(i, j)] * spins[i] * spins[j]
+    for i in external:
+        s += external[i] * spins[i]
     return s
 
 
-def nx_to_pytorch(graph, include_spin = False):
+def nx_to_pytorch(graph: nx.Graph, include_spin: bool = False) -> Data:
     """
     This function assumes that node attributes are called "spin" and edge attributes are called "coupling"
+    :param include_spin:
     :param graph: networkx Graph
     :return: pytorch geometric data
     """
@@ -71,7 +50,7 @@ def nx_to_pytorch(graph, include_spin = False):
     return data
 
 
-def random_spin_flips(nx_graph, percentage):
+def random_spin_flips(nx_graph: nx.Graph, percentage: float) -> nx.Graph:
     """
     :param nx_graph:
     :param percentage:
