@@ -7,7 +7,8 @@ import numpy as np
 import random as rn
 import networkx as nx
 
-from math import inf
+from tqdm import tqdm
+from math import inf, exp
 from gym import spaces
 from copy import deepcopy
 from numpy.random import default_rng
@@ -16,6 +17,10 @@ from src.utils import compute_energy_nx,  nx_to_pytorch
 from src.data_gen import generate_chimera
 
 rng = default_rng()
+
+
+
+
 
 
 class Chimera(gym.Env):
@@ -92,7 +97,7 @@ class Chimera(gym.Env):
         return compute_energy_nx(self.chimera)
 
     def brute_force(self):
-        assert self.chimera.number_of_nodes() <= 32, "size of chimera should be less or equal 32"
+        assert self.chimera.number_of_nodes() <= 16, "Too, big instance. Size of chimera should be less or equal 16"
         graph = copy.deepcopy(self.chimera)
         lst = [list(i) for i in product([1, -1], repeat=graph.number_of_nodes())]
         min_energy = inf
@@ -103,6 +108,24 @@ class Chimera(gym.Env):
             if energy < min_energy:
                 min_energy = energy
         return min_energy
+
+    def simulated_annealing(self, iter_max: int, temp: float) -> float:
+        curr = copy.deepcopy(self.graph)
+        best = copy.deepcopy(curr)
+        for i in tqdm(range(iter_max)):
+            prop = copy.deepcopy(curr)
+            t = temp / float(i + 1)
+            action = rn.choice(list(prop.nodes))
+            prop.nodes[action]["spin"] *= -1
+            diff = compute_energy_nx(prop) - compute_energy_nx(curr)
+            if compute_energy_nx(prop) < compute_energy_nx(curr):
+                curr = copy.deepcopy(prop)
+                if compute_energy_nx(curr) < compute_energy_nx(best):
+                    best = copy.deepcopy(curr)
+
+            elif exp(-diff / t) > rn.random():
+                curr = copy.deepcopy(prop)
+        return compute_energy_nx(best)
 
 
 class RandomChimera(Chimera):
