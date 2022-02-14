@@ -82,13 +82,19 @@ class Chimera(gym.Env):
 
     def compute_reward(self, old_graph,  new_graph, action: int):
         # Get neighbourhood. They are identical in both graphs
+        """
         delta_i = list(new_graph.neighbors(action))
         delta_i.append(action)  # to include node itself
 
         g_old = old_graph.subgraph(delta_i)
         g_new = new_graph.subgraph(delta_i)
 
-        diff = compute_energy_nx(g_old) - compute_energy_nx(g_new)
+        e_old = compute_energy_nx(g_old)
+        e_new = compute_energy_nx(g_new)
+        """
+        e_old = compute_energy_nx(old_graph)
+        e_new = compute_energy_nx(new_graph)
+        diff = e_old - e_new
         reward = 2*diff
 
         return reward
