@@ -39,8 +39,8 @@ class BaseTrainer:
 
     # Default paths
     root_dir = Path.cwd().parent
-    model_path = root_dir / "models" / "model_C3_v4.pt"
-    model_validation_path = root_dir / "models" / "model_C3_v4_val.pt"
+    model_path = root_dir / "models" / "model_C3_v5.pt"
+    model_validation_path = root_dir / "models" / "model_C3_v5_val.pt"
     checkpoint_path = root_dir / "models" / "model_checkpoint_test.pt"
     dwave_path = root_dir / "datasets" / "d_wave"
 
@@ -49,7 +49,7 @@ class BaseTrainer:
     gamma: float = 0.999
     eps_start: float = 1.0
     eps_end: float = 0.05
-    num_episodes: int = 50000
+    num_episodes: int = 60000
     eps_decay: int = int(num_episodes * 0.20)
     include_spin: bool = True
     episode_checkpoint: int = -1
@@ -74,6 +74,11 @@ class BaseTrainer:
 
         self.episode_checkpoint = checkpoint["episode"]
         self.validation_score = checkpoint['validation_score']
+
+    def load_model(self, path=None) -> None:
+
+        model = torch.load(self.model_path) if path is None else torch.load(path)
+        self.policy_net.load_state_dict(model["model_state_dict"])
 
     def save_checkpoint(self, episode: int, path=None) -> None:
         save_path = self.checkpoint_path if path is None else path
@@ -102,9 +107,12 @@ class DQNTrainer(BaseTrainer):
         self.steps_done: int = 0
 
         self.env = env
-        self.val_env = Chimera(generate_chimera(5, 5), include_spin=self.include_spin)  # to change
+        self.val_env = Chimera(generate_chimera(8, 8), include_spin=self.include_spin)  # to change
         self.q_actions = None
         self.q_values = None
+
+    def set_val_env(self, n: int, m: int) -> None:
+        self.val_env = Chimera(generate_chimera(n, m), include_spin=self.include_spin)
 
     def reset_trajectory(self) -> None:
         self.trajectory = deque([], maxlen=1000)
@@ -126,9 +134,9 @@ class DQNTrainer(BaseTrainer):
             # it is done when model performs final spin flip
             if done:
                 break
-            x = np.arange(len(energy_list))
-            plt.plot(x, energy_list)
-            plt.show()
+        x = np.arange(len(energy_list))
+        plt.plot(x, energy_list)
+        plt.show()
 
     def compute_q_values(self, validate: bool = False) -> None:
         state = self.env.state.to(self.device) if not validate else self.val_env.state.to(self.device)
@@ -214,10 +222,9 @@ class DQNTrainer(BaseTrainer):
     def fit(self):
         valid_list: list = []
         loss_list: list = []
-        sa = self.val_env.simulated_annealing(1000, 50.0)
-        print(sa)
         min_los = inf
         self.policy_net.train()
+        self.load_checkpoint()
         for episode in tqdm(range(self.num_episodes), leave=None, desc="episodes"):
 
             # Bring steps_done in line with checkpoint
@@ -229,6 +236,9 @@ class DQNTrainer(BaseTrainer):
             self.env.reset()
             self.reset_trajectory()
             self.compute_q_values()
+            p = rn.random()
+            if p < 0.1:
+                self.env.simulated_annealing(100,10)
             loss = 0
             # Perform steps of algorithm
             for _ in count():
@@ -258,13 +268,14 @@ class DQNTrainer(BaseTrainer):
             self.steps_done += 1
 
             # Sum loss statistic
-            if episode > 5:  # to avoid false data from empty replay buffer
+            if episode > self.episode_checkpoint + 5:  # to avoid false data from empty replay buffer
                 loss /= self.env.chimera.number_of_nodes()
                 loss_list.append(loss.item())
                 if loss < min_los:
                     self.save_model(episode, self.model_path)
 
             # Validate
+            """
             if episode % self.validation_update == 0:
                 validation_score_new = self.validate()
                 valid_list.append(validation_score_new)
@@ -272,16 +283,12 @@ class DQNTrainer(BaseTrainer):
                 if validation_score_new < self.validation_score and episode > 500:
                     self.validation_score = validation_score_new
                     self.save_model(episode, self.model_validation_path)
+                """
             self.save_checkpoint(episode)
-            if episode % 1000 == 0 and episode != 0:
-                plt.ion()
-                x = np.arange(len(valid_list))
-                x2 = np.arange(len(loss_list))
-                plt.plot(x, valid_list)
+            if episode%100==0:
+                x = np.arange(len(loss_list))
+                plt.plot(x, loss_list)
                 plt.show()
-                plt.plot(x2, loss_list, color="green")
-                plt.show()
-        print(self.validation_score)
 
 
 if __name__ == "__main__":

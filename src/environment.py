@@ -118,7 +118,7 @@ class Chimera(gym.Env):
     def simulated_annealing(self, iter_max: int, temp: float) -> float:
         curr = copy.deepcopy(self.graph)
         best = copy.deepcopy(curr)
-        for i in tqdm(range(iter_max)):
+        for i in range(iter_max):  #tqdm(range(iter_max)):
             prop = copy.deepcopy(curr)
             t = temp / float(i + 1)
             action = rn.choice(list(prop.nodes))
@@ -143,7 +143,7 @@ class RandomChimera(Chimera):
         self.dim = (self.n, self.m)
         self.include_spin = include_spin
 
-    def reset(self, random_dim=False, low=2, high=3):
+    def reset(self, random_dim=False, low=3, high=4):
         # new instance
         rdim = rng.integers(low, high, 2, endpoint=True)
         self.dim = rdim if random_dim else (self.n, self.m)
