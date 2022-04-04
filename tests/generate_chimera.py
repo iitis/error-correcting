@@ -1,7 +1,9 @@
 import unittest
+import pickle
 import networkx as nx
 import matplotlib.pyplot as plt
-from src.data_gen import generate_chimera, nx_to_pytorch
+from src.data_gen import generate_chimera, generate_chimera_from_csv, generate_solved_chimera_from_csv
+from src.utils import nx_to_pytorch, compute_energy_nx
 
 
 class TestChimeraGeneration(unittest.TestCase):
@@ -12,7 +14,7 @@ class TestChimeraGeneration(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.g = generate_chimera((cls.dim1, cls.dim2))
+        cls.g = generate_chimera(cls.dim1, cls.dim2)
 
     def test_prints(self):
         if self.draw:
@@ -33,26 +35,100 @@ class TestChimeraGeneration(unittest.TestCase):
         max_degree = max(self.g.degree, key=lambda x: x[1])[1]
         min_degree = min(self.g.degree, key=lambda x: x[1])[1]
         if self.dim1 <= 2 or self.dim2 <= 2:
-            self.assertTrue(max_degree == 7)
-            self.assertTrue(min_degree == 7)
+            self.assertTrue(max_degree == 5)
+            self.assertTrue(min_degree == 5)
         else:
-            self.assertTrue(max_degree == 8)
-            self.assertTrue(min_degree == 7)
+            self.assertTrue(max_degree == 6)
+            self.assertTrue(min_degree == 5)
 
     def test_attributes(self):
         self.assertEqual(len(nx.get_node_attributes(self.g, "spin")), len(self.g.nodes))
+        self.assertEqual(len(nx.get_edge_attributes(self.g, "coupling")), len(self.g.edges))
+        self.assertEqual(len(nx.get_node_attributes(self.g, "chimera_index")), len(self.g.nodes))
+
+    def test_pytorch(self):
+        data = nx_to_pytorch(self.g)
+
+        self.assertEqual(self.g.number_of_nodes(), data.num_nodes)
+        self.assertEqual(self.g.size(), data.num_edges/2)
+
+        self.assertIsNotNone(data.x)
+        self.assertIsNotNone(data.edge_attr)
+
+        self.assertEqual(list(data.x.shape), [data.num_nodes, 5])
+        self.assertEqual(list(data.edge_attr.shape), [data.num_edges, 1])
+
+
+class TestChimeraCSV(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        chimera_path = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/chimera_512_002.csv"
+        cls.g = generate_chimera_from_csv(chimera_path)
+
+
+    def test_degrees(self):
+        # degrees with self-loops
+        max_degree = max(self.g.degree, key=lambda x: x[1])[1]
+        min_degree = min(self.g.degree, key=lambda x: x[1])[1]
+        self.assertTrue(max_degree == 6)
+        self.assertTrue(min_degree == 5)
+
+    def test_attributes(self):
+        self.assertEqual(len(nx.get_node_attributes(self.g, "spin")), len(self.g.nodes))
+        self.assertEqual(len(nx.get_node_attributes(self.g, "chimera_index")),  len(self.g.nodes))
+        self.assertEqual(len(nx.get_node_attributes(self.g, "external")), len(self.g.nodes))
         self.assertEqual(len(nx.get_edge_attributes(self.g, "coupling")), len(self.g.edges))
 
     def test_pytorch(self):
         data = nx_to_pytorch(self.g)
 
         self.assertEqual(self.g.number_of_nodes(), data.num_nodes)
-        self.assertEqual(self.g.size(), data.num_edges/2 + data.num_nodes/2)
+        self.assertEqual(self.g.size(), data.num_edges/2)
 
         self.assertIsNotNone(data.x)
         self.assertIsNotNone(data.edge_attr)
 
-        self.assertEqual(list(data.x.shape), [data.num_nodes, 1])
+        self.assertEqual(list(data.x.shape), [data.num_nodes, 5])
+        self.assertEqual(list(data.edge_attr.shape), [data.num_edges, 1])
+
+class TestChimeraSol(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        chimera_path = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/chimera_512_002.csv"
+        sol_path = "/home/tsmierzchalski/pycharm_projects/error-correcting/datasets/chimera_512_sol.pkl"
+        with open(sol_path, 'rb') as f:
+            cls.solution_dict = pickle.load(f)
+        cls.g = generate_solved_chimera_from_csv(chimera_path, cls.solution_dict, number=2)
+
+
+    def test_energy(self):
+
+        self.assertAlmostEqual(self.solution_dict["2"]["ground"], compute_energy_nx(self.g), 3)
+
+    def test_degrees(self):
+        # degrees with self-loops
+        max_degree = max(self.g.degree, key=lambda x: x[1])[1]
+        min_degree = min(self.g.degree, key=lambda x: x[1])[1]
+        self.assertTrue(max_degree == 6)
+        self.assertTrue(min_degree == 5)
+
+    def test_attributes(self):
+        self.assertEqual(len(nx.get_node_attributes(self.g, "spin")), len(self.g.nodes))
+        self.assertEqual(len(nx.get_node_attributes(self.g, "chimera_index")), len(self.g.nodes))
+        self.assertEqual(len(nx.get_node_attributes(self.g, "external")), len(self.g.nodes))
+        self.assertEqual(len(nx.get_edge_attributes(self.g, "coupling")), len(self.g.edges))
+
+    def test_pytorch(self):
+        data = nx_to_pytorch(self.g)
+
+        self.assertEqual(self.g.number_of_nodes(), data.num_nodes)
+        self.assertEqual(self.g.size(), data.num_edges/2)
+
+        self.assertIsNotNone(data.x)
+        self.assertIsNotNone(data.edge_attr)
+
+        self.assertEqual(list(data.x.shape), [data.num_nodes, 5])
         self.assertEqual(list(data.edge_attr.shape), [data.num_edges, 1])
 
 

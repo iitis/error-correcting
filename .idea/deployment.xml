@@ -1,11 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="tsmierzchalski@192.168.100.221:22 password" remoteFilesAllowedToDisappearOnAutoupload="false">
+  <component name="PublishConfigData" autoUpload="Always" serverName="tsmierzchalski@192.168.100.221 (1)" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
-      <paths name="tsmierzchalski@192.168.100.221:22 password">
+      <paths name="tsmierzchalski@192.168.100.221">
         <serverdata>
           <mappings>
-            <mapping deploy="/home/tsmierzchalski/pycharm_projects/error-correcting" local="$PROJECT_DIR$" />
+            <mapping deploy="/home/tsmierzchalski/pycharm_projects/error-correcting" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="tsmierzchalski@192.168.100.221 (1)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/tsmierzchalski/pycharm_projects/error-correcting" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>

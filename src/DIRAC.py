@@ -1,61 +1,49 @@
-import random
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-#from torch_geometric.nn import MessagePassing
-from torch_geometric.data import Batch
-from utils import add_neighbours, add_edges
-from collections import namedtuple, deque
-from src.data_gen import transform, transform_batch_square
+import torch.nn.init as init
+
+from torch import Tensor, LongTensor
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 # implement network as in article
-class SGNN(nn.Module):
+class DIRAC(nn.Module):
 
-    def __init__(self):
-        super(SGNN, self).__init__()
+    def __init__(self, include_spin=False):
+        super(DIRAC, self).__init__()
 
-        self.edge1 = EdgeCentric(2, 2, 1, 2)  # edge [E, 4]
-        self.node1 = NodeCentric(2, 2, 4, 5)  # node [N, 7]
-        self.edge2 = EdgeCentric(7, 9, 4, 5)  # edge [E, 14]
-        self.node2 = NodeCentric(7, 9, 14, 15)  # node [N, 24]
-        self.edge3 = EdgeCentric(24, 30, 14, 15)  # edge [E, 45]
-        self.node3 = NodeCentric(24, 30, 45, 15)  # node [N, 45]
-        self.edge4 = EdgeCentric(45, 20, 45, 15)  # edge [E, 35]
-        self.node4 = NodeCentric(45, 20, 35, 10)  # node [N, 30]
-        self.edge5 = EdgeCentric(30, 3, 35, 2)  # edge [E, 5]
-        self.node5 = NodeCentric(30, 3, 5, 2)  # node [N, 5]
+        self.encoder = SGNNMaxPool(include_spin=include_spin)
+        #self.encoder = nn.DataParallel(self.encoder)
 
-    def forward(self, data):
-        x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
-        x.to(device)
-        edge_index.to(device)
-        edge_attr.to(device)
-        data.cuda()
+        self.fc1 = nn.Linear(12, 36)
+        init.xavier_normal_(self.fc1.weight, gain=init.calculate_gain('relu'))
 
-        data.edge_attr = F.relu(self.edge1(data))
-        data.x = F.relu(self.node1(data))
-        data.edge_attr = F.relu(self.edge2(data))
-        data.x = F.relu(self.node2(data))
-        data.edge_attr = F.relu(self.edge3(data))
-        data.x = F.relu(self.node3(data))
-        data.edge_attr = F.relu(self.edge4(data))
-        data.x = F.relu(self.node4(data))
-        data.edge_attr = F.relu(self.edge5(data))
-        data.x = F.relu(self.node5(data))
+        self.fc2 = nn.Linear(36, 10)
+        init.xavier_normal_(self.fc2.weight, gain=init.calculate_gain('relu'))
 
-        action_embedding = data.x  # node attributes [N, 5]
-        state_embedding = torch.sum(action_embedding, dim=0)  # [1, 5]
-        state_embedding = state_embedding[None, :]
-        state_embedding = state_embedding.repeat(data.x.size()[0], 1)  # change od dimenstions to later concanate
-
-        output = torch.cat((action_embedding, state_embedding), dim=1)  # [N, 10]
-
-        return output
+        self.fc3 = nn.Linear(10, 1)
+        init.xavier_normal_(self.fc3.weight, gain=init.calculate_gain('leaky_relu', 0.2))
 
 
+    def forward(self, batch):
+        # output should have size [1, N] (Q-values)
+
+        state_action_embedding = self.encoder(batch.x, batch.edge_index, batch.edge_attr)
+        Q = state_action_embedding
+        Q = F.relu(self.fc1(Q))
+        Q = F.dropout(Q, p=0.5, training=self.training)
+
+        Q = F.relu(self.fc2(Q))
+        Q = F.dropout(Q, p=0.5, training=self.training)
+
+        Q = F.leaky_relu(self.fc3(Q), 0.2)
+        return Q.reshape(-1)  # vector [1,N]
+
+
+"""
 class DIRAC(nn.Module):
 
     def __init__(self, dim=(3, 3)):
@@ -82,87 +70,106 @@ class DIRAC(nn.Module):
         Q = F.relu(self.fc3(Q))
 
         return Q.reshape(-1)
-
+"""
 
 class EdgeCentric(nn.Module):
 
-    def __init__(self, in_channels_x, out_channels_x, in_channels_e, out_channels_e):
+    def __init__(self, in_channels_x: int, out_channels_x: int, in_channels_e: int, out_channels_e: int) -> None:
         super(EdgeCentric, self).__init__()
 
         self.fcx = nn.Linear(in_channels_x, out_channels_x)
         self.fce = nn.Linear(in_channels_e, out_channels_e)
 
-    def forward(self, data):
-        # x has size [N, in_channels_x]
-        # edge_index has size [2, E],
-        # edge_attr has size [E, in_channels_e]
-        # node_sum has size [E, num_of_node_features]
-        # return has size [E, out_channels_x + out_channels_e]
-        if device == "cuda":
-            data.cuda()
-        elif device == "cpu":
-            data.cpu()
+    def forward(self, x, edge_index, edge_attr):
 
-        x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
-        x.to(device)
-        edge_index.to(device)
-        edge_attr.to(device)
+        x_i = x[edge_index[0]]
+        x_j = x[edge_index[1]]
+        x = x_i + x_j
+        x = self.fcx(x)
         edge_attr = self.fce(edge_attr)
-        node_sum = add_neighbours(x, edge_index)
-        node_sum = self.fcx(node_sum)
-        edge_attr = torch.cat((edge_attr, node_sum), dim=1)
-
-        return edge_attr
+        output = torch.cat((x, edge_attr), dim=1)
+        return output
 
 
 class NodeCentric(nn.Module):
-
-    def __init__(self, in_channels_x, out_channels_x, in_channels_e, out_channels_e):
+    def __init__(self, in_channels_x: int, out_channels_x: int, in_channels_e: int, out_channels_e: int) -> None:
         super(NodeCentric, self).__init__()
 
         self.fcx = nn.Linear(in_channels_x, out_channels_x)
         self.fce = nn.Linear(in_channels_e, out_channels_e)
 
-    def forward(self, data):
-        # x has size [N, in_channels_x]
-        # edge_index has size [2, E],
-        # edge_attr has size [E, in_channels_e]
-        # edge_sum has size [N, num_of_edge_features]
-        # return has size [N, out_channels_x + out_channels_e]
-        x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
-        x.to(device)
-        edge_index.to(device)
-        edge_attr.to(device)
+    def forward(self, x, edge_index, edge_attr):
+
+        adj = torch.sparse_coo_tensor(edge_index, edge_attr)
+        adj = adj.to_dense()
+        adj = torch.sum(adj, dim=1)
         x = self.fcx(x)
-        edge_sum = add_edges(x, edge_index, edge_attr)
-        edge_sum = self.fce(edge_sum)
-        x = torch.cat((x, edge_sum), dim=1)
-        return x
+        edge_attr = self.fce(adj)
+        output = torch.cat((x, edge_attr), dim=1)
+        return output
 
 
+class SGNNMaxPool(nn.Module):
+
+    def __init__(self, include_spin: bool = False):
+        super(SGNNMaxPool, self).__init__()
+
+        self.max_pool = nn.MaxPool1d(3)
+
+        if include_spin:
+            self.edge1 = EdgeCentric(6, 10, 1, 2)  # Edge 1->12
+             # Edge 12->4
+            self.node1 = NodeCentric(6, 4, 4, 3)  # Node 6->30
+              # Node 6->6
+        else:
+            self.edge1 = EdgeCentric(5, 10, 1, 2)  # Edge 1->12
+             # Edge 12->4
+            self.node1 = NodeCentric(5, 4, 4, 3)  # Node 5->30
+              # Node 6->6
+
+        self.edge2 = EdgeCentric(7, 18, 4, 12)  # Edge 4->30
+         # Edge 30 -> 10
+        self.node2 = NodeCentric(7, 4, 10, 4)  # Node 10->30
+          # Node 30->10
+
+        self.edge3 = EdgeCentric(8, 18, 10, 12)  # Edge 10->30
+         # Edge 30 -> 10
+        self.node3 = NodeCentric(8, 4, 10, 4)  # Node 10->30
+          # Node 30->10
+
+        self.edge4 = EdgeCentric(8, 18, 10, 12)  # Edge 10->30
+         # Edge 30 -> 10
+        self.node4 = NodeCentric(8, 4, 10, 4)  # Node 10->30
+          # Node 30->10
+        self.edge5 = EdgeCentric(8, 3, 10, 3)  # Edge 10->6
+        self.node5 = NodeCentric(8, 3, 6, 3)  # Node 10->6
 
 
+    def forward(self, x: Tensor, edge_index: LongTensor, edge_attr: Tensor) -> Tensor:
 
+        edge_attr = self.max_pool(F.relu(self.edge1(x, edge_index, edge_attr)))
+        x = F.relu(self.node1(x, edge_index, edge_attr))
 
+        edge_attr = self.max_pool(F.relu(self.edge2(x, edge_index, edge_attr)))
+        x = F.relu(self.node2(x, edge_index, edge_attr))
 
+        edge_attr = self.max_pool(F.relu(self.edge3(x, edge_index, edge_attr)))
+        x = F.relu(self.node3(x, edge_index, edge_attr))
 
-Transition = namedtuple('Transition',
-                        ('state', 'action', 'next_state', 'reward'))
+        edge_attr = self.max_pool(F.relu(self.edge4(x, edge_index, edge_attr)))
+        x = F.relu(self.node4(x, edge_index, edge_attr))
 
+        edge_attr = F.relu(self.edge5(x, edge_index, edge_attr))
+        x = F.leaky_relu(self.node5(x, edge_index, edge_attr), 0.2)
 
-class ReplayMemory(object):
+        action_embedding = x  # node attributes [N, 6]
+        state_embedding = torch.sum(action_embedding, dim=0)  # [1, 6]
+        # add virtual empty first dimensions (in pytorch size [1,6] is just [6])
+        state_embedding = state_embedding[None, :]
+        N = x.size()[0]
+        # change od dimensions to later concatenate. Repeat N times along Y axis and once along X axis (so we got [N,6])
+        state_embedding = state_embedding.repeat(N, 1)  # change od dimensions to later concatenate
 
-    def __init__(self, capacity):
-        self.memory = deque([], maxlen=capacity)
+        output = torch.cat((state_embedding, action_embedding), dim=1)  # [N, 12]
 
-    def push(self, *args):
-        """Save a transition"""
-        self.memory.append(Transition(*args))
-
-    def sample(self, batch_size):
-        return random.sample(self.memory, batch_size)
-
-    def __len__(self):
-        return len(self.memory)
-
-
+        return output
