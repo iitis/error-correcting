@@ -13,24 +13,24 @@ This research was supported by the National Science Centre (NCN), Poland, under 
 
 ## Citation
 If you find this research useful, please cite it under:
-@InProceedings{10.1007/978-3-031-08760-8_22,
- author="{\'{S}}mierzchalski, Tomasz
- and Pawela, {\L}ukasz
- and Pucha{\l}a, Zbigniew
- and Trzci{\'{n}}ski, Tomasz
- and Gardas, Bart{\l}omiej",
- editor="Groen, Derek
- and de Mulatier, Cl{\'e}lia
- and Paszynski, Maciej
- and Krzhizhanovskaya, Valeria V.
- and Dongarra, Jack J.
- and Sloot, Peter M. A.",
- title="Post-error Correction for Quantum Annealing Processor Using Reinforcement Learning",
- booktitle="Computational Science -- ICCS 2022",
- year="2022",
- publisher="Springer International Publishing",
- address="Cham",
- pages="261--268",
- isbn="978-3-031-08760-8"
- doi="10.1007/978-3-031-08760-8_22"
+
+@InProceedings{10.1007/978-3-031-08760-8_22,   
+ author="{\'{S}}mierzchalski, Tomasz     
+        and Pawela, {\L}ukasz    
+        and Pucha{\l}a, Zbigniew    
+        and Trzci{\'{n}}ski, Tomasz    
+        and Gardas, Bart{\l}omiej",    
+ editor="Groen, Derek    
+        and de Mulatier, Cl{\'e}lia    
+        and Paszynski, Maciej    
+        and Krzhizhanovskaya, Valeria V.    
+        and Dongarra, Jack J.    
+        and Sloot, Peter M. A.",    
+ title="Post-error Correction for Quantum Annealing Processor Using Reinforcement Learning",    
+ booktitle="Computational Science -- ICCS 2022",    
+ year="2022",    
+ publisher="Springer International Publishing",    
+ pages="261--268",   
+ isbn="978-3-031-08760-8"   
+ doi="10.1007/978-3-031-08760-8_22"   
 }
