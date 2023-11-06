@@ -1,3 +1,4 @@
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10074900.svg)](https://doi.org/10.5281/zenodo.10074900)
 # Post-Error Correction for Quantum Annealing Processor using Reinforcement Learning
 Tomasz Śmierzchalski, Łukasz Pawela, Zbigniew Puchała, Tomasz Trzciński and Bartłomiej Gardas
 
